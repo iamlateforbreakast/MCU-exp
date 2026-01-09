@@ -5,6 +5,9 @@
 sudo apt update
 sudo apt install gcc-arm-none-eabi binutils-arm-none-eabi gdb-arm-none-eabi build-essential
 
+flash tool
+https://github.com/jojoling/ameba_bw16_autoflash/blob/main/README.md
+
 ## Install Realtek SDK
 
 Clone the SDK: Download or clone the Ameba-AIoT/ameba-rtos-d repository from GitHub.
