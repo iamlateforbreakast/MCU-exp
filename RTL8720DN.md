@@ -12,6 +12,7 @@ https://github.com/jojoling/ameba_bw16_autoflash/blob/main/README.md
 
 Clone the SDK: Download or clone the Ameba-AIoT/ameba-rtos-d repository from GitHub.
 
+Clone the new SDK: Download or clone the (Ameba-AIoT/ameba-rtos repository)[https://github.com/Ameba-AIoT/ameba-rtos]
 Linux/macOS: Add the following to your ~/.bashrc or ~/.zshrc:
 export RTK_TOOLCHAIN_DIR="/path/to/your/arm-none-eabi/bin".
 
