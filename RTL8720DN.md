@@ -2,8 +2,10 @@ How to compile projects for the AI Thinker BW16 (RTL8720DN) on Fedora 42 in WSL
 
 ## GCC toolchain for ARM M0 and M3
 
-sudo apt update
-sudo apt install gcc-arm-none-eabi binutils-arm-none-eabi gdb-arm-none-eabi build-essential
+```
+sudo dnf update
+sudo dnf install gcc-arm-none-eabi binutils-arm-none-eabi gdb-arm-none-eabi build-essential
+```
 
 ## Install the flash tool
 
@@ -22,7 +24,10 @@ export RTK_TOOLCHAIN_DIR="/path/to/your/arm-none-eabi/bin".
 ## Compile the Realtek SDK
 
 Install python
-   '''sudo apt install python3 python3-pip python3-venv
+
+```
+sudo apt install python3 python3-pip python3-venv
+```
 
 ## Create project
 
