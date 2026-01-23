@@ -1,0 +1,15 @@
+#include <SoftwareSerial.h>
+
+// Define generic pins for RX and TX (example: PA30 and PA26)
+SoftwareSerial FPGA_Serial(PA30, PA26); 
+
+void setup() {
+  Serial.begin(115200);
+  FPGA_Serial.begin(9600); // Start with a lower baud rate for reliability
+}
+
+void loop() {
+  if (FPGA_Serial.available()) {
+    Serial.write(FPGA_Serial.read());
+  }
+}
