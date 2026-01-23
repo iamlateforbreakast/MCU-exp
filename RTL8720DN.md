@@ -1,22 +1,28 @@
+How to compile projects for the AI Thinker BW16 (RTL8720DN) on Fedora 42 in WSL
 
-
-## GCC toolchain for the AI Thinker BW16 (RTL8720DN)
+## GCC toolchain for ARM M0 and M3
 
 sudo apt update
 sudo apt install gcc-arm-none-eabi binutils-arm-none-eabi gdb-arm-none-eabi build-essential
+
+## Install the flash tool
 
 flash tool
 https://github.com/jojoling/ameba_bw16_autoflash/blob/main/README.md
 
 ## Install Realtek SDK
 
-Clone the SDK: Download or clone the Ameba-AIoT/ameba-rtos-d repository from GitHub.
+Option 1: Clone the old SDK: Download or clone the Ameba-AIoT/ameba-rtos-d repository from GitHub.
 
-Clone the new SDK: Download or clone the (Ameba-AIoT/ameba-rtos repository)[https://github.com/Ameba-AIoT/ameba-rtos]
+Option 2: Clone the new SDK: Download or clone the (Ameba-AIoT/ameba-rtos repository)[https://github.com/Ameba-AIoT/ameba-rtos]
+
 Linux/macOS: Add the following to your ~/.bashrc or ~/.zshrc:
 export RTK_TOOLCHAIN_DIR="/path/to/your/arm-none-eabi/bin".
 
-## Path Realtek SDK
+## Compile the Realtek SDK
+
+Install python
+   '''sudo apt install python3 python3-pip python3-venv
 
 ## Create project
 
