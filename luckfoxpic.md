@@ -15,7 +15,7 @@ Pull the docker image:
 
 Install the SDK
 
-TBC
+`git clone https://github.com/LuckfoxTECH/luckfox-pico.git`
 
 Run container
 
