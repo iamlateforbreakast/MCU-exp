@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>E-Commerce Platform Redesign — Project Plan</title>
+  <style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap');
+
+:root {
+  --bg:          #f5f2ed;
+  --surface:     #ffffff;
+  --surface2:    #f0ece6;
+  --border:      #ddd8d0;
+  --border2:     #c8c0b4;
+  --ink:         #1a1714;
+  --ink2:        #4a4540;
+  --ink3:        #8a8078;
+  --accent:      #1a5276;
+  --accent-light:#eaf2f8;
+  --accent-mid:  rgba(26,82,118,0.15);
+  --warn:        #d35400;
+  --warn-light:  #fef5ec;
+  --green:       #1e8449;
+  --green-light: #eafaf1;
+  --red:         #c0392b;
+  --red-light:   #fdecea;
+  --red-mid:     rgba(192,57,43,0.15);
+  --gold:        #7d6608;
+  --gold-light:  #fef9e7;
+  --shadow-c:    #6b8e23;
+  --shadow-light:#f0f7e6;
+}
+
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Syne', sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.page { max-width: 1100px; margin: 0 auto; padding: 36px 28px 80px; }
+
+/* ── HEADER ── */
+.hdr {
+  margin-bottom: 36px;
+  padding-bottom: 24px;
+  border-bottom: 3px solid var(--ink);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 20px;
+  align-items: end;
+}
+.hdr-eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; letter-spacing: 3px;
+  color: var(--ink3); text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.hdr h1 {
+  font-size: 32px; font-weight: 800;
+  color: var(--ink); line-height: 1.1;
+}
+.hdr h1 em { color: var(--accent); font-style: normal; }
+.hdr-meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; color: var(--ink3);
+  text-align: right; line-height: 2;
+}
+
+/* ── SECTION LABEL ── */
+.sec {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; letter-spacing: 2px;
+  color: var(--ink3); text-transform: uppercase;
+  padding: 20px 0 10px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+.sec:first-child { padding-top: 0; }
+
+/* ── NOTES ── */
+.note {
+  padding: 12px 16px;
+  border-radius: 4px;
+  font-size: 12px; line-height: 1.7;
+  margin-bottom: 14px;
+}
+.note-rule   { background: var(--surface2); border-left: 4px solid var(--ink);   color: var(--ink2); }
+.note-warn   { background: var(--warn-light); border-left: 4px solid var(--warn); color: var(--ink2); }
+.note-ok     { background: var(--green-light); border-left: 4px solid var(--green); color: var(--ink2); }
+.note strong { color: var(--ink); }
+
+/* ── SUMMARY CARDS ── */
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px; margin-bottom: 28px;
+}
+.s-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 4px; padding: 18px 16px; text-align: center;
+}
+.s-value { font-family: 'Syne', sans-serif; font-size: 30px; font-weight: 800; color: var(--accent); }
+.s-label { font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--ink3); margin-top: 4px; }
+.s-sub   { font-size: 11px; color: var(--ink3); margin-top: 3px; }
+
+/* ── PHASE TIMELINE ── */
+.phase-timeline { display: grid; gap: 0; }
+
+.phase {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 0;
+  position: relative;
+}
+.phase-spine {
+  display: flex; flex-direction: column;
+  align-items: center; padding-top: 6px;
+}
+.phase-num {
+  width: 40px; height: 40px; border-radius: 50%;
+  border: 3px solid var(--ink);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 15px;
+  background: var(--bg); z-index: 2; flex-shrink: 0;
+}
+.phase-line {
+  width: 3px; flex: 1;
+  background: var(--border2);
+  margin: 6px 0;
+}
+.phase:last-child .phase-line { display: none; }
+
+.phase-body { padding: 0 0 36px 18px; }
+
+.phase-header {
+  display: flex; align-items: baseline;
+  gap: 12px; margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.phase-title   { font-size: 19px; font-weight: 700; }
+.phase-subtitle {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; color: var(--ink3); letter-spacing: 1px;
+}
+.phase-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; padding: 3px 9px;
+  border-radius: 3px; letter-spacing: 1px; text-transform: uppercase;
+}
+.pb-prep { background: var(--surface2);   color: var(--ink2);  border: 1px solid var(--border2); }
+.pb-low  { background: var(--shadow-light); color: var(--shadow-c); border: 1px solid rgba(107,142,35,0.3); }
+.pb-med  { background: var(--warn-light);  color: var(--warn);  border: 1px solid rgba(211,84,0,0.3); }
+.pb-high { background: var(--red-light);   color: var(--red);   border: 1px solid rgba(192,57,43,0.3); }
+
+/* ── TASK TABLE ── */
+.task-table { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
+.task-table th {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; letter-spacing: 1px; color: var(--ink3);
+  text-align: left; padding: 8px 12px;
+  border-bottom: 2px solid var(--border2);
+  text-transform: uppercase; background: var(--surface2);
+}
+.task-table td {
+  padding: 10px 12px; border-bottom: 1px solid var(--border);
+  vertical-align: top; line-height: 1.6; font-size: 12px;
+}
+.task-table tr:hover td { background: rgba(0,0,0,0.02); }
+.task-table tr:last-child td { border-bottom: none; }
+
+.owner-lead   { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--accent); font-weight: 500; }
+.owner-intern { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--warn);   font-weight: 500; }
+.owner-both   { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--gold);   font-weight: 500; }
+
+.risk-low  { color: var(--shadow-c); font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+.risk-med  { color: var(--warn);     font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+.risk-high { color: var(--red);      font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+
+/* ── PROGRESS BAR ── */
+.progress-wrap {
+  height: 5px; background: var(--border);
+  border-radius: 3px; overflow: hidden;
+  margin-bottom: 4px;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--green));
+  border-radius: 3px;
+}
+.progress-pct {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; color: var(--ink3);
+}
+
+/* ── MILESTONE TIMELINE ── */
+.milestone-list { display: grid; gap: 0; }
+.milestone-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 11px 0; border-bottom: 1px solid var(--border);
+}
+.milestone-row:last-child { border-bottom: none; }
+.m-dot {
+  width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700;
+  background: var(--surface2); border: 2px solid var(--border2); color: var(--ink3);
+}
+.milestone-row.done    .m-dot { background: var(--green-light); border-color: var(--green); color: var(--green); }
+.milestone-row.overdue .m-dot { background: var(--red-light);   border-color: var(--red);   color: var(--red); }
+.m-name { font-size: 13px; font-weight: 600; }
+.m-date {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; color: var(--ink3); margin-top: 1px;
+}
+
+/* ── RISK GRID ── */
+.risk-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+.risk-item {
+  background: var(--surface); border-radius: 4px;
+  padding: 14px; border-left: 4px solid;
+  border: 1px solid var(--border); border-left-width: 4px;
+}
+.risk-item.risk-high   { border-left-color: var(--red); }
+.risk-item.risk-medium { border-left-color: var(--warn); }
+.risk-item.risk-low    { border-left-color: var(--shadow-c); }
+
+.risk-header {
+  display: flex; justify-content: space-between;
+  align-items: flex-start; gap: 8px; margin-bottom: 6px;
+}
+.risk-title { font-size: 12px; font-weight: 600; }
+.risk-level {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 3px; flex-shrink: 0;
+}
+.risk-item.risk-high   .risk-level { background: var(--red-light);    color: var(--red); }
+.risk-item.risk-medium .risk-level { background: var(--warn-light);   color: var(--warn); }
+.risk-item.risk-low    .risk-level { background: var(--shadow-light); color: var(--shadow-c); }
+.risk-mitigation { font-size: 11px; color: var(--ink3); font-style: italic; margin-top: 4px; }
+
+/* ── BODY CONTENT ── */
+.body-content { margin-bottom: 0; }
+.body-content h2 {
+  font-family: 'Syne', sans-serif;
+  font-size: 16px; font-weight: 700;
+  color: var(--ink); margin: 28px 0 10px;
+  padding-bottom: 8px; border-bottom: 1px solid var(--border);
+}
+.body-content h2:first-child { margin-top: 0; }
+.body-content h3 { font-size: 13px; font-weight: 700; margin: 16px 0 6px; color: var(--ink); }
+.body-content p  { font-size: 12px; color: var(--ink2); margin-bottom: 10px; line-height: 1.7; }
+.body-content ul, .body-content ol { padding-left: 18px; font-size: 12px; color: var(--ink2); margin-bottom: 10px; line-height: 1.9; }
+.body-content li { margin-bottom: 2px; }
+.body-content strong { color: var(--ink); }
+.body-content em { color: var(--ink2); }
+.body-content table {
+  width: 100%; border-collapse: collapse;
+  font-size: 12px; margin-bottom: 14px;
+}
+.body-content th {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; letter-spacing: 1px; text-transform: uppercase;
+  text-align: left; padding: 8px 12px;
+  background: var(--surface2); color: var(--ink3);
+  border-bottom: 2px solid var(--border2);
+}
+.body-content td {
+  padding: 9px 12px; border-bottom: 1px solid var(--border);
+  color: var(--ink2); vertical-align: top;
+}
+.body-content tr:last-child td { border-bottom: none; }
+.body-content tr:hover td { background: rgba(0,0,0,0.02); }
+.body-content hr {
+  border: none; border-top: 1px solid var(--border); margin: 20px 0;
+}
+.body-content blockquote {
+  border-left: 4px solid var(--border2); padding: 10px 16px;
+  background: var(--surface2); margin: 0 0 12px; font-style: italic;
+  color: var(--ink2); font-size: 12px;
+}
+.body-content code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; background: var(--surface2);
+  padding: 1px 5px; border-radius: 3px; color: var(--accent);
+}
+.body-content pre {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 4px; padding: 14px 16px; margin-bottom: 12px;
+  overflow-x: auto;
+}
+.body-content pre code {
+  background: none; padding: 0; color: var(--ink2); font-size: 11px;
+}
+
+/* ── TWO COL ── */
+.two-col {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+  margin-bottom: 20px;
+}
+@media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 4px; padding: 16px;
+}
+.card-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 10px;
+}
+.card p  { font-size: 12px; color: var(--ink2); line-height: 1.7; }
+.card ul { padding-left: 16px; font-size: 12px; color: var(--ink2); line-height: 1.9; }
+
+/* ── OBJECTIVES ── */
+.objectives-box {
+  background: var(--surface2);
+  border-left: 4px solid var(--ink);
+  border-radius: 0 4px 4px 0;
+  padding: 12px 16px; margin-bottom: 20px;
+  font-size: 12px; color: var(--ink2); line-height: 1.7;
+}
+.objectives-box strong {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--ink3); display: block; margin-bottom: 5px;
+}
+
+/* ── FOOTER ── */
+.site-footer {
+  margin-top: 40px; padding-top: 20px;
+  border-top: 2px solid var(--ink);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; color: var(--ink3);
+  display: flex; justify-content: space-between;
+  flex-wrap: wrap; gap: 8px;
+}
+  </style>
+</head>
+<body>
+<div class="page">
+
+<!-- ═══════════════ HEADER ═══════════════ -->
+<div class="hdr">
+  <div>
+    <div class="hdr-eyebrow">Digital Products · Project Plan</div>
+    <h1>E-Commerce Platform Redesign</h1>
+  </div>
+  <div class="hdr-meta">
+Manager: Sarah Mitchell<br>
+Start: 2025-01-06<br>
+End: 2025-06-30<br>
+Status: Active<br>
+Priority: High
+  </div>
+</div>
+
+<!-- ═══════════════ SUMMARY CARDS ═══════════════ -->
+<div class="summary-grid">
+  <div class="s-card">
+    <div class="s-value">5</div>
+    <div class="s-label">Phases</div>
+  </div>
+  <div class="s-card">
+    <div class="s-value">5</div>
+    <div class="s-label">Milestones</div>
+  </div>
+  <div class="s-card">
+    <div class="s-value">4</div>
+    <div class="s-label">Risks</div>
+  </div>
+  <div class="s-card">
+    <div class="s-value" style="font-size:20px;padding-top:6px;">$145k</div>
+    <div class="s-label">Budget</div>
+  </div>
+</div>
+
+<!-- ═══════════════ OBJECTIVES ═══════════════ -->
+<div class="objectives-box">
+  <strong>Objectives</strong>
+  Increase conversion rate by 25%, reduce page load time under 2s,
+  improve mobile UX score to 90+, and ship the new product discovery
+  feature by Q2.
+</div>
+
+<!-- ═══════════════ PHASES ═══════════════ -->
+<div class="sec">Project Phases</div>
+<div class="phase-timeline">
+  <div class="phase">
+    <div class="phase-spine">
+      <div class="phase-num" style="border-color:var(--green);color:var(--green);">1</div>
+      <div class="phase-line"></div>
+    </div>
+    <div class="phase-body">
+      <div class="phase-header">
+        <div class="phase-title">Discovery &amp; Research</div>
+        <div class="phase-subtitle">Before a single line of code
+changes</div>
+        <span class="phase-badge pb-high">Lead only · 2 weeks</span>
+      </div>
+      <div class="note note-rule"><strong>The golden rule:</strong> you
+cannot safely redesign what you have not measured. This phase produces
+the benchmark data and user research that defines success for every
+subsequent phase.</div>
+      <div class="progress-wrap"><div class="progress-fill" style="width:100%"></div></div>
+      <div class="progress-pct">100% complete</div>
+    </div>
+  </div>
+  <div class="phase">
+    <div class="phase-spine">
+      <div class="phase-num" style="border-color:var(--warn);color:var(--warn);">2</div>
+      <div class="phase-line"></div>
+    </div>
+    <div class="phase-body">
+      <div class="phase-header">
+        <div class="phase-title">Design</div>
+        <div class="phase-subtitle">Agree on direction before
+building</div>
+        <span class="phase-badge pb-prep">Lead + designer · 4
+weeks</span>
+      </div>
+      <div class="note note-warn"><strong>Interface freeze:</strong> the
+design system and all key screen flows are frozen before any frontend
+work begins. Ambiguity here causes rework that looks like engineering
+problems.</div>
+      <div class="progress-wrap"><div class="progress-fill" style="width:60%"></div></div>
+      <div class="progress-pct">60% complete</div>
+    </div>
+  </div>
+  <div class="phase">
+    <div class="phase-spine">
+      <div class="phase-num" style="border-color:var(--ink3);color:var(--ink3);">3</div>
+      <div class="phase-line"></div>
+    </div>
+    <div class="phase-body">
+      <div class="phase-header">
+        <div class="phase-title">Frontend Development</div>
+        <div class="phase-subtitle">Implement to the design
+contract</div>
+        <span class="phase-badge pb-prep">Dev team · 8 weeks</span>
+      </div>
+      <div class="note note-rule"><strong>The five-step rule:</strong>
+every component follows Implement → Review → Integrate → Shadow →
+Cutover. No component goes to production without passing the acceptance
+criteria defined in phase 1.</div>
+      <div class="progress-wrap"><div class="progress-fill" style="width:0%"></div></div>
+      <div class="progress-pct">0% complete</div>
+    </div>
+  </div>
+  <div class="phase">
+    <div class="phase-spine">
+      <div class="phase-num" style="border-color:var(--ink3);color:var(--ink3);">4</div>
+      <div class="phase-line"></div>
+    </div>
+    <div class="phase-body">
+      <div class="phase-header">
+        <div class="phase-title">Backend &amp; API</div>
+        <div class="phase-subtitle">Services, data, integrations</div>
+        <span class="phase-badge pb-prep">Backend lead · 6 weeks</span>
+      </div>
+      <div class="progress-wrap"><div class="progress-fill" style="width:0%"></div></div>
+      <div class="progress-pct">0% complete</div>
+    </div>
+  </div>
+  <div class="phase">
+    <div class="phase-spine">
+      <div class="phase-num" style="border-color:var(--ink3);color:var(--ink3);">5</div>
+      <div class="phase-line"></div>
+    </div>
+    <div class="phase-body">
+      <div class="phase-header">
+        <div class="phase-title">Testing &amp; Launch</div>
+        <div class="phase-subtitle">Full regression + staged
+rollout</div>
+        <span class="phase-badge pb-prep">All · 3 weeks</span>
+      </div>
+      <div class="note note-warn"><strong>Do not compress this
+phase.</strong> The shadow period — running old and new in parallel — is
+not schedule fat. It is the safety gate.</div>
+      <div class="progress-wrap"><div class="progress-fill" style="width:0%"></div></div>
+      <div class="progress-pct">0% complete</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ MILESTONES ═══════════════ -->
+<div class="sec" style="margin-top:28px;">Milestones</div>
+<div class="milestone-list">
+  <div class="milestone-row done">
+    <div class="m-dot">&amp;#10003;</div>
+    <div>
+      <div class="m-name">Research &amp; benchmarks complete</div>
+      <div class="m-date">2025-01-20</div>
+    </div>
+  </div>
+  <div class="milestone-row done">
+    <div class="m-dot">&amp;#10003;</div>
+    <div>
+      <div class="m-name">Design system signed off</div>
+      <div class="m-date">2025-02-28</div>
+    </div>
+  </div>
+  <div class="milestone-row overdue">
+    <div class="m-dot">!</div>
+    <div>
+      <div class="m-name">Key screen flows approved</div>
+      <div class="m-date">2025-03-14</div>
+    </div>
+  </div>
+  <div class="milestone-row overdue">
+    <div class="m-dot">!</div>
+    <div>
+      <div class="m-name">Frontend feature freeze</div>
+      <div class="m-date">2025-05-09</div>
+    </div>
+  </div>
+  <div class="milestone-row overdue">
+    <div class="m-dot">!</div>
+    <div>
+      <div class="m-name">Public launch</div>
+      <div class="m-date">2025-06-30</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ RISKS ═══════════════ -->
+<div class="sec" style="margin-top:28px;">Risk Register</div>
+<div class="risk-grid">
+  <div class="risk-item risk-high">
+    <div class="risk-header">
+      <span class="risk-title">Scope Creep</span>
+      <span class="risk-level">High</span>
+    </div>
+    <div style="font-size:12px;color:var(--ink2);margin-bottom:4px;">Stakeholders
+adding features mid-build.</div>
+    <div class="risk-mitigation">&#8594; Strict change control with
+formal sign-off. All additions go to next quarter.</div>
+  </div>
+  <div class="risk-item risk-medium">
+    <div class="risk-header">
+      <span class="risk-title">3rd-party API Delay</span>
+      <span class="risk-level">Medium</span>
+    </div>
+    <div style="font-size:12px;color:var(--ink2);margin-bottom:4px;">Payment
+gateway integration timeline uncertain.</div>
+    <div class="risk-mitigation">&#8594; Identify backup provider. Start
+integration 2 weeks early.</div>
+  </div>
+  <div class="risk-item risk-medium">
+    <div class="risk-header">
+      <span class="risk-title">Budget Overrun</span>
+      <span class="risk-level">Medium</span>
+    </div>
+    <div style="font-size:12px;color:var(--ink2);margin-bottom:4px;">Unforeseen
+technical complexity in checkout re-architecture.</div>
+    <div class="risk-mitigation">&#8594; 10% contingency buffer. Weekly
+budget review.</div>
+  </div>
+  <div class="risk-item risk-low">
+    <div class="risk-header">
+      <span class="risk-title">Key Person Dependency</span>
+      <span class="risk-level">Low</span>
+    </div>
+    <div style="font-size:12px;color:var(--ink2);margin-bottom:4px;">Single
+designer on critical path.</div>
+    <div class="risk-mitigation">&#8594; Cross-train second designer on
+system by week 4.</div>
+  </div>
+</div>
+
+<!-- ═══════════════ BODY ═══════════════ -->
+<div class="sec" style="margin-top:28px;">Details</div>
+<div class="body-content">
+<h2 id="scope">Scope</h2>
+<p>The redesign covers the following areas of the platform:</p>
+<ul>
+<li><strong>Homepage</strong> — new hero, featured categories,
+personalisation engine</li>
+<li><strong>Product detail pages</strong> — improved gallery, spec
+layout, reviews</li>
+<li><strong>Checkout flow</strong> — simplified 3-step checkout with
+guest option</li>
+<li><strong>Account portal</strong> — order history, returns, saved
+items</li>
+<li><strong>Search &amp; discovery</strong> — faceted filters,
+AI-powered recommendations</li>
+</ul>
+<p>Out of scope for this release: mobile app, wholesale portal, ERP
+integration.</p>
+<h2 id="team">Team</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Role</th>
+<th>Name</th>
+<th>Involvement</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Project Manager</td>
+<td>Sarah Mitchell</td>
+<td>Full-time</td>
+</tr>
+<tr class="even">
+<td>Lead Designer</td>
+<td>Anna Kowalski</td>
+<td>Full-time phases 1–2</td>
+</tr>
+<tr class="odd">
+<td>Frontend Lead</td>
+<td>Tom Richards</td>
+<td>Full-time phases 2–4</td>
+</tr>
+<tr class="even">
+<td>Backend Lead</td>
+<td>James Chen</td>
+<td>Phases 3–4</td>
+</tr>
+<tr class="odd">
+<td>QA Lead</td>
+<td>Priya Nair</td>
+<td>Phase 5</td>
+</tr>
+</tbody>
+</table>
+<h2 id="definition-of-done">Definition of Done</h2>
+<p>An algorithm — or in our case, a page or feature — is not complete
+until:</p>
+<ol type="1">
+<li>It passes all acceptance criteria defined in the design phase</li>
+<li>It has been reviewed by the lead designer and product owner</li>
+<li>It has run in shadow mode alongside the old version for a minimum
+soak period</li>
+<li>Performance benchmarks are met (Core Web Vitals: LCP &lt; 2.5s, CLS
+&lt; 0.1)</li>
+<li>The old implementation has been formally retired and removed</li>
+</ol>
+<blockquote>
+<p>Do not mark anything complete until step 5 is done. “It works in
+staging” is not done.</p>
+</blockquote>
+</div>
+
+<!-- ═══════════════ FOOTER ═══════════════ -->
+<div class="site-footer">
+  <span>E-Commerce Platform Redesign</span>
+  <span>Generated 2025-03-11</span>
+</div>
+
+</div><!-- page -->
+</body>
+</html>
