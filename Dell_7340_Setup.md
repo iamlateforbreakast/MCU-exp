@@ -1,4 +1,4 @@
-Issues boot Fedora 43 live USB image
+# Issues boot Fedora 43 live USB image
 
 Potential Causes and Solutions
 USB Boot is Disabled in BIOS: Many Dell Latitude models ship with external USB ports disabled for booting to prevent unauthorised OS installations.
@@ -15,3 +15,10 @@ Fix: In the BIOS, under Storage, change the SATA/NVMe Operation from RAID to AHC
 
 USB Formatting (UEFI/GPT): If the USB works on an older computer but not this one, it might be formatted with an MBR partition table for Legacy BIOS. The Latitude 7340 requires a GPT partition table for UEFI.
 Fix: Re-create your live media using the Fedora Media Writer or Rufus (selecting GPT and UEFI target system). 
+
+# Install VSCode
+
+# Install gcc
+
+
+
