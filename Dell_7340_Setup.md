@@ -18,7 +18,14 @@ Fix: Re-create your live media using the Fedora Media Writer or Rufus (selecting
 
 # Install VSCode
 
+```
+sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc &&
+echo -e "[code]\nname=Visual Studio Code\nbaseurl=https://packages.microsoft.com/yumrepos/vscode\nenabled=1\nautorefresh=1\ntype=rpm-md\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc" | sudo tee /etc/yum.repos.d/vscode.repo > /dev/null
+```
+
 # Install gcc
+
+`sudo dnf install gcc make autoconf flex bison`
 
 
 
