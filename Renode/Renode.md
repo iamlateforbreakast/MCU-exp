@@ -2,11 +2,11 @@ How to install renode in fedora 43
 
 Pull renode image:
 
-`podman pull antmicro/renode:latest
+`podman pull antmicro/renode:latest`
 
 Run Headless (Recommended for CI/Scripts):
 
-`podman run -it --rm -p 1234:1234 antmicro/renode:latest
+`podman run -it --rm -p 1234:1234 antmicro/renode:latest`
 
 Run with GUI (Interactive):
 
