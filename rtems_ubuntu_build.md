@@ -1,9 +1,3 @@
-% SPDX-License-Identifier: CC-BY-SA-4.0
-
-% Copyright (C) 2024 embedded brains GmbH & Co. KG
-
-(RustBareMetal)=
-
 # Bare Metal Rust with RTEMS
 
 To develop with Rust and RTEMS together, you must find a Rust bare metal
