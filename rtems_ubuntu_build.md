@@ -1,3 +1,22 @@
+# Create an RTEMS ELF and execute it on Renode
+
+## First try with a simipler setup
+
+I have only been able to compile RTEMS on ubuntu 24.04 LTS in a conatiner
+
+first step is to create a Ubuntu image with a developper user and updated for development.
+
+
+
+```
+podmap images
+podman run -it --userns=keep-id -v /home/thomas/Projects/rtems-build/workspace:/home/thomas/workspace:Z,U rtems_build
+podman start -ait <Container id>
+
+```
+
+
+
 # Bare Metal Rust with RTEMS
 
 To develop with Rust and RTEMS together, you must find a Rust bare metal
