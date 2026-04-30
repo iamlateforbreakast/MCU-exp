@@ -4,8 +4,28 @@ LABEL com.github.containers.toolbox="true" \
       com.github.debarshiray.toolbox="true"
 
 RUN apt-get update && \
-    apt-get -y install sudo libcap2-bin && \
-    apt-get clean
+    apt-get -y upgrade && \
+    apt-get -y install \
+        build-essential \
+        curl \
+        g++ \
+        gdb \
+        bison \
+        curl \
+        flex \
+        git \
+        libncurses5-dev \
+        ninja-build \
+        pax \
+        pkg-config \
+        python3-dev \
+        qemu-system-misc \
+        texinfo \
+        unzip \
+        sudo \
+        libcap2-bin && \
+     apt-get clean && \
+     rm -rf /var/lib/apt/lists/*
 
 RUN sed -i -e 's/ ALL$/ NOPASSWD:ALL/' /etc/sudoers
 
