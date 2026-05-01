@@ -1,0 +1,24 @@
+services:
+  rtems-dev:
+    build: .
+    container_name: rtems-dev
+    user: thomas
+    volumes:
+      # Syncs your local project folder to the container
+      - .:/home/thomas/project
+      
+      # Persists the RTEMS toolchain and build artifacts
+      # - rtems_toolchain:/opt/rtems
+      
+      # Persists Cargo's cache so you don't redownload crates
+      # - cargo_cache:/home/thomas/.cargo
+
+      # Persists the workspace
+      - workspace:/home/thomas/Projects/MCU-exp/workspace
+      
+    # Keeps the container running so you can exec into it
+    stdin_open: true
+    tty: true
+
+volumes:
+  -workspace:
