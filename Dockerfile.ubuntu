@@ -1,5 +1,9 @@
 # Dockerfile to build a container image to use Rust on top of RTEMS
 FROM ubuntu:24.04
+
+LABEL com.github.containers.toolbox="true" \
+      com.github.debarshiray.toolbox="true"
+
 RUN apt-get update && \
     apt-get -y upgrade && \
     apt-get install -y \
@@ -19,6 +23,8 @@ RUN apt-get update && \
         qemu-system-misc \
         texinfo \
         unzip \
+        libcap2-bin \
+        sudo \
         zlib1g-dev && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
@@ -29,6 +35,11 @@ RUN useradd -c "Rust Developer" -g "users" \
     runuser -u thomas echo \
             'export PATH=/opt/rtems/7/bin:${PATH}' \
             >>/home/thomas/.bashrc
+
+RUN sed -i -e 's/ ALL$/ NOPASSWD:ALL/' /etc/sudoers
+RUN touch /etc/localtime
+RUN echo VARIANT_ID=container >> /etc/os-release
+
 USER thomas
 WORKDIR /home/thomas
 CMD ["/bin/bash"]
