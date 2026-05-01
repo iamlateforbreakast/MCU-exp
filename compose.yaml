@@ -1,6 +1,8 @@
 services:
   rtems-dev:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.ubuntu
     container_name: rtems-dev
     user: thomas
     volumes:
@@ -21,4 +23,4 @@ services:
     tty: true
 
 volumes:
-  -workspace:
+  workspace:
