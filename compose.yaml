@@ -5,7 +5,7 @@ services:
     user: thomas
     volumes:
       # Syncs your local project folder to the container
-      - .:/home/thomas/project
+      # - .:/home/thomas/project
       
       # Persists the RTEMS toolchain and build artifacts
       # - rtems_toolchain:/opt/rtems
