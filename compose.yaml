@@ -14,7 +14,7 @@ services:
       # - cargo_cache:/home/thomas/.cargo
 
       # Persists the workspace
-      - workspace:/home/thomas/Projects/MCU-exp/workspace
+      - workspace:/home/thomas/Projects/MCU-exp/workspace:z,U
       
     # Keeps the container running so you can exec into it
     stdin_open: true
