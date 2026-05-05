@@ -8,7 +8,11 @@ services:
     volumes:
       # Syncs your local project folder to the container
       # - .:/home/thomas/project
+<<<<<<< HEAD
       
+=======
+
+>>>>>>> 5e681c0c96bade3fe62adf88d9a090a71ade402c
       # Persists the workspace
       - /home/thomas/Projects/MCU-exp/workspace:/home/thomas/workspace:z,U
       
