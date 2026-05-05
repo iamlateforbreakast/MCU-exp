@@ -4,11 +4,9 @@ services:
       context: .
       dockerfile: Dockerfile.ubuntu
     container_name: rtems-dev
+    userns_mode: "keep-id"
     user: thomas
     volumes:
-      # Syncs your local project folder to the container
-      # - .:/home/thomas/project
-
       # Persists the workspace
       - /home/thomas/Projects/MCU-exp/workspace:/home/thomas/workspace:z,U
       
