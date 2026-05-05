@@ -22,6 +22,7 @@ RUN apt-get update && \
         python-is-python3 \
         qemu-system-misc \
         texinfo \
+        install-info \
         unzip \
         libcap2-bin \
         sudo \
