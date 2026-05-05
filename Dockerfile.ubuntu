@@ -28,15 +28,19 @@ RUN apt-get update && \
         zlib1g-dev && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
-RUN useradd -c "Rust Developer" -g "users" \
-            -d "/home/thomas" --create-home "thomas" && \
-    mkdir -p /opt/rtems && \
-    chown thomas:users /opt/rtems && \
-    runuser -u thomas echo \
-            'export PATH=/opt/rtems/7/bin:${PATH}' \
-            >>/home/thomas/.bashrc
 
-RUN sed -i -e 's/ ALL$/ NOPASSWD:ALL/' /etc/sudoers
+# Match UID/GID to standard Fedora user (1000)
+# Added to sudo group and fixed home directory setup
+RUN userdel -r ubuntu && \
+    useradd -u 1000 -U -c "RTEMS Developer" \
+            -G sudo -d "/home/thomas" --create-home "thomas" && \
+    mkdir -p /opt/rtems && \
+    chown thomas:thomas /opt/rtems && \
+    echo 'export PATH=/opt/rtems/7/bin:${PATH}' >> /home/thomas/.bashrc
+
+# Allow sudo without password
+RUN echo "thomas ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
 RUN touch /etc/localtime
 RUN echo VARIANT_ID=container >> /etc/os-release
 
