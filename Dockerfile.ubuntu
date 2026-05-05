@@ -36,7 +36,8 @@ RUN userdel -r ubuntu && \
             -G sudo -d "/home/thomas" --create-home "thomas" && \
     mkdir -p /opt/rtems && \
     chown thomas:thomas /opt/rtems && \
-    echo 'export PATH=/opt/rtems/7/bin:${PATH}' >> /home/thomas/.bashrc
+    echo 'export PATH=/opt/rtems/7/bin:${PATH}' >> /home/thomas/.bashrc && \
+    export PS1="\[\033[01;34m\](podman) \[\033[00m\]\u@\h:\w\$ " >> /home/thomas/.bashrc
 
 # Allow sudo without password
 RUN echo "thomas ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
