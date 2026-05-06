@@ -5,11 +5,23 @@ services:
       dockerfile: Dockerfile.ubuntu
     container_name: rtems-dev
     userns_mode: "keep-id"
-    user: thomas
+    user: "thomas"
     volumes:
-      # Persists the workspace
       - /home/thomas/Projects/MCU-exp/workspace:/home/thomas/workspace:z,U
-      
-    # Keeps the container running so you can exec into it
+    stdin_open: true
+    tty: true
+
+  renode:
+    build:
+      context: .
+      dockerfile: Dockerfile.renode
+    container_name: renode-emu
+    userns_mode: "keep-id"
+    user: "thomas"
+    ports:
+      - "1024:1024" # Monitor port
+      - "1234:1234" # GDB port
+    volumes:
+      - /home/thomas/Projects/MCU-exp/workspace:/home/thomas/workspace:z,U
     stdin_open: true
     tty: true
