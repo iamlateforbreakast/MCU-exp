@@ -24,7 +24,7 @@ RUN wget https://renode.io -O /tmp/renode.deb \
 
 # Set Renode as the default entrypoint
 # The --disable-gui flag is recommended for standard headless Docker environments
-ENTRYPOINT ["renode", "--disable-gui"]
+# ENTRYPOINT ["renode", "--disable-gui"]
 
 
 # Match UID/GID to standard Fedora user (1000)
