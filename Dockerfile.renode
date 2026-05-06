@@ -13,14 +13,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
     libgtk-3-0 \
     libglib2.0-0 \
+    dotnet-runtime-8.0 \
+    screen \
+    libgdiplus \
+    polkitd \
+    libc6-dev \
+    gcc \
     && rm -rf /var/lib/apt/lists/*
+
+COPY renode_1.16.1_amd64.deb /tmp/renode.deb
 
 # Download and install the latest Renode .deb package from the official build server
 # Using 'renode-latest.deb' ensures you get the most recent stable release
-RUN wget https://renode.io -O /tmp/renode.deb \
-    && apt-get install -y /tmp/renode.deb \
-    && rm /tmp/renode.deb \
-    && rm -rf /var/lib/apt/lists/*
+# RUN apt-get install -y /tmp/renode.deb \
+#    && rm /tmp/renode.deb \
+#    && rm -rf /var/lib/apt/lists/*
 
 # Set Renode as the default entrypoint
 # The --disable-gui flag is recommended for standard headless Docker environments
