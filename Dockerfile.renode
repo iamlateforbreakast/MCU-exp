@@ -18,7 +18,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Download and install the latest Renode .deb package from the official build server
 # Using 'renode-latest.deb' ensures you get the most recent stable release
 RUN wget https://renode.io -O /tmp/renode.deb \
-    && apt-get update \
     && apt-get install -y /tmp/renode.deb \
     && rm /tmp/renode.deb \
     && rm -rf /var/lib/apt/lists/*
