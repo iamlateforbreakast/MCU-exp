@@ -14,6 +14,11 @@ TBC
 
 TBC
 
+```
+podman compose up -d
+podman exec -it rtems-dev /bin/bash
+```
+
 ## Executing a binary image with Renode
 
 https://www.maskset.net/blog/2025/08/27/renode-docker-setup-on-ubuntu-24.04/
