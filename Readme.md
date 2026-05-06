@@ -19,6 +19,13 @@ podman compose up -d
 podman exec -it rtems-dev /bin/bash
 ```
 
+Convert an exe to elf:
+
+```
+riscv-rtems6-objcopy sample.exe sample.elf
+riscv-rtems6-readelf -h sample.elf | grep "Entry point address"
+```
+
 ## Executing a binary image with Renode
 
 https://www.maskset.net/blog/2025/08/27/renode-docker-setup-on-ubuntu-24.04/
