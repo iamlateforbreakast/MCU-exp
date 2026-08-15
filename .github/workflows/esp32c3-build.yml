@@ -1,0 +1,42 @@
+name: Build ESP32-C3 dev image
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "Dockerfile.esp32c3"
+      - "compose.yaml"
+      - ".github/workflows/esp32c3-build.yml"
+  pull_request:
+    paths:
+      - "Dockerfile.esp32c3"
+      - "compose.yaml"
+      - ".github/workflows/esp32c3-build.yml"
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build esp32c3-dev image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.esp32c3
+          push: false
+          load: true
+          tags: esp32c3-dev:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Sanity-check idf.py inside the image
+        run: |
+          docker run --rm esp32c3-dev:ci bash -c \
+            'source /home/thomas/esp-idf/export.sh > /dev/null && idf.py --version'
