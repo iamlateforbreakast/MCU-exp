@@ -1,0 +1,59 @@
+# Dockerfile to build a container image for ESP32-C3 development using ESP-IDF
+FROM ubuntu:24.04
+
+LABEL com.github.containers.toolbox="true" \
+      com.github.debarshiray.toolbox="true"
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && \
+    apt-get -y upgrade && \
+    apt-get install -y \
+        bison \
+        build-essential \
+        ccache \
+        cmake \
+        curl \
+        flex \
+        git \
+        gperf \
+        gdb \
+        libffi-dev \
+        libssl-dev \
+        libusb-1.0-0 \
+        libusb-1.0-0-dev \
+        ninja-build \
+        python3 \
+        python3-pip \
+        python3-venv \
+        sudo \
+        udev \
+        unzip \
+        wget && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Match UID/GID to standard Fedora user (1000)
+# Added to sudo and dialout groups (dialout for serial/USB flashing access)
+RUN useradd -u 1000 -U -c "ESP32 Developer" \
+            -G sudo,dialout -d "/home/thomas" --create-home "thomas" && \
+    export PS1="\[\033[01;34m\](podman) \[\033[00m\]\u@\h:\w\$ " >> /home/thomas/.bashrc
+
+# Allow sudo without password
+RUN echo "thomas ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+RUN touch /etc/localtime
+RUN echo VARIANT_ID=container >> /etc/os-release
+
+USER thomas
+WORKDIR /home/thomas
+
+ENV IDF_TOOLS_PATH=/home/thomas/.espressif
+
+# Fetch ESP-IDF and install the toolchain/tools scoped to the ESP32-C3 target
+RUN git clone -b v5.3.1 --recursive https://github.com/espressif/esp-idf.git /home/thomas/esp-idf && \
+    /home/thomas/esp-idf/install.sh esp32c3
+
+RUN echo '. /home/thomas/esp-idf/export.sh > /dev/null 2>&1' >> /home/thomas/.bashrc
+
+CMD ["/bin/bash"]
