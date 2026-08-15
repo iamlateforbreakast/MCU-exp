@@ -1,4 +1,6 @@
 # Dockerfile to build a container image for ESP32-C3 development using ESP-IDF
+# Intended for use with podman (see compose.yaml, which relies on userns_mode: keep-id
+# to map the host user's UID/GID into the container).
 FROM ubuntu:24.04
 
 LABEL com.github.containers.toolbox="true" \
@@ -33,27 +35,33 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Match UID/GID to standard Fedora user (1000)
+# Username and UID/GID are configurable so the container's user can match the
+# host user podman maps in via userns_mode: keep-id.
+ARG USERNAME=thomas
+ARG USER_UID=1000
+ARG USER_GID=${USER_UID}
+
 # Added to sudo and dialout groups (dialout for serial/USB flashing access)
-RUN useradd -u 1000 -U -c "ESP32 Developer" \
-            -G sudo,dialout -d "/home/thomas" --create-home "thomas" && \
-    export PS1="\[\033[01;34m\](podman) \[\033[00m\]\u@\h:\w\$ " >> /home/thomas/.bashrc
+RUN groupadd -g ${USER_GID} ${USERNAME} && \
+    useradd -u ${USER_UID} -g ${USER_GID} -c "ESP32 Developer" \
+            -G sudo,dialout -d "/home/${USERNAME}" --create-home "${USERNAME}" && \
+    export PS1="\[\033[01;34m\](podman) \[\033[00m\]\u@\h:\w\$ " >> /home/${USERNAME}/.bashrc
 
 # Allow sudo without password
-RUN echo "thomas ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+RUN echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 RUN touch /etc/localtime
 RUN echo VARIANT_ID=container >> /etc/os-release
 
-USER thomas
-WORKDIR /home/thomas
+USER ${USERNAME}
+WORKDIR /home/${USERNAME}
 
-ENV IDF_TOOLS_PATH=/home/thomas/.espressif
+ENV IDF_TOOLS_PATH=/home/${USERNAME}/.espressif
 
 # Fetch ESP-IDF and install the toolchain/tools scoped to the ESP32-C3 target
-RUN git clone -b v5.3.1 --recursive https://github.com/espressif/esp-idf.git /home/thomas/esp-idf && \
-    /home/thomas/esp-idf/install.sh esp32c3
+RUN git clone -b v5.3.1 --recursive https://github.com/espressif/esp-idf.git /home/${USERNAME}/esp-idf && \
+    /home/${USERNAME}/esp-idf/install.sh esp32c3
 
-RUN echo '. /home/thomas/esp-idf/export.sh > /dev/null 2>&1' >> /home/thomas/.bashrc
+RUN echo ". /home/${USERNAME}/esp-idf/export.sh > /dev/null 2>&1" >> /home/${USERNAME}/.bashrc
 
 CMD ["/bin/bash"]

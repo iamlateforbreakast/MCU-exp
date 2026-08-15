@@ -30,11 +30,15 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.esp32c3
+      args:
+        USERNAME: ${USERNAME:-thomas}
+        USER_UID: ${USER_UID:-1000}
+        USER_GID: ${USER_GID:-1000}
     container_name: esp32c3-dev
     userns_mode: "keep-id"
-    user: "thomas"
+    user: "${USERNAME:-thomas}"
     volumes:
-      - /home/thomas/Projects/MCU-exp/workspace:/home/thomas/workspace:z,U
+      - ${WORKSPACE_DIR:-./workspace}:/home/${USERNAME:-thomas}/workspace:z,U
     # Uncomment and adjust to the serial device exposed by the board on the host
     # in order to flash/monitor over USB (e.g. the ESP32-C3's native USB-CDC port).
     # devices:
