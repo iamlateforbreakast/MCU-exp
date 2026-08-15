@@ -41,8 +41,11 @@ ARG USERNAME=thomas
 ARG USER_UID=1000
 ARG USER_GID=${USER_UID}
 
+# ubuntu:24.04 ships a stock "ubuntu" user/group at 1000:1000; remove it so the
+# configurable UID/GID below don't collide with it.
 # Added to sudo and dialout groups (dialout for serial/USB flashing access)
-RUN groupadd -g ${USER_GID} ${USERNAME} && \
+RUN userdel -r ubuntu && \
+    groupadd -g ${USER_GID} ${USERNAME} && \
     useradd -u ${USER_UID} -g ${USER_GID} -c "ESP32 Developer" \
             -G sudo,dialout -d "/home/${USERNAME}" --create-home "${USERNAME}" && \
     export PS1="\[\033[01;34m\](podman) \[\033[00m\]\u@\h:\w\$ " >> /home/${USERNAME}/.bashrc
