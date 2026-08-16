@@ -42,6 +42,15 @@ storage device, then copy the built `.uf2` file onto it:
 cp build/hello_world.uf2 /media/$USER/RPI-RP2/
 ```
 
+## Firmware output
+
+`compose.yaml` also mounts a separate `firmware/RPI2040` host directory to `~/firmware`
+inside the container - copy the built `.uf2` there so it's easy to find on the host:
+
+```
+cp build/gpio_led_blink.uf2 ~/firmware/
+```
+
 # Install SDK (manual, outside the container)
 
 `git clone https://github.com/raspberrypi/pico-sdk.git`

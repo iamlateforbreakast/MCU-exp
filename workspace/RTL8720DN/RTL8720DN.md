@@ -43,6 +43,18 @@ Pass the board's USB-serial device through via the commented `devices` entry in
 `compose.yaml`, then use `~/ameba_bw16_autoflash` (see its own README) or the Realtek
 `upload_image_tool_linux` against `/dev/ttyUSB0` as described below.
 
+## Firmware output
+
+`compose.yaml` also mounts a separate `firmware/RTL8720DN` host directory to
+`~/firmware` inside the container - copy your build's output image(s) there so they're
+easy to find on the host (e.g. `km0_boot_all.bin`/`km4_boot_all.bin`/
+`km0_km4_image2.bin` per the classic AmebaD build flow referenced below; exact
+filenames depend on which SDK/build flow you actually used):
+
+```
+cp asdk/image/*.bin ~/firmware/
+```
+
 ---
 
 # Manual setup notes (outside the container)

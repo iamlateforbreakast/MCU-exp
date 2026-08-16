@@ -16,7 +16,7 @@ RUN apt-get update && \
 
 # Username and UID/GID are configurable so the container's user can match the
 # host user podman maps in via userns_mode: keep-id.
-ARG USERNAME=thomas
+ARG USERNAME=builder
 ARG USER_UID=1000
 ARG USER_GID=${USER_UID}
 

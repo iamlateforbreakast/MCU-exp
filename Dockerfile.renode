@@ -38,18 +38,18 @@ COPY renode_1.16.1_amd64.deb /tmp/renode.deb
 # Added to sudo group and fixed home directory setup
 RUN userdel -r ubuntu && \
     useradd -u 1000 -U -c "RTEMS Developer" \
-            -G sudo -d "/home/thomas" --create-home "thomas" && \
+            -G sudo -d "/home/builder" --create-home "builder" && \
     mkdir -p /opt/rtems && \
-    chown thomas:thomas /opt/rtems && \
-    echo 'export PATH=/opt/rtems/7/bin:${PATH}' >> /home/thomas/.bashrc && \
-    export PS1="\[\033[01;34m\](podman) \[\033[00m\]\u@\h:\w\$ " >> /home/thomas/.bashrc
+    chown builder:builder /opt/rtems && \
+    echo 'export PATH=/opt/rtems/7/bin:${PATH}' >> /home/builder/.bashrc && \
+    export PS1="\[\033[01;34m\](podman) \[\033[00m\]\u@\h:\w\$ " >> /home/builder/.bashrc
 
 # Allow sudo without password
-RUN echo "thomas ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+RUN echo "builder ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 RUN touch /etc/localtime
 RUN echo VARIANT_ID=container >> /etc/os-release
 
-USER thomas
-WORKDIR /home/thomas
+USER builder
+WORKDIR /home/builder
 CMD ["/bin/bash"]

@@ -109,3 +109,12 @@ vendor SDK's own examples where applicable):
 Every example uses placeholder GPIO pin numbers - adjust them to match how you've
 actually wired the LEDs on your board before building/flashing.
 
+## Firmware output
+
+Each of the five MCU containers mounts a second host directory, `firmware/<MCU>`, to
+`~/firmware` inside the container (distinct from the `workspace/<MCU>` source mount).
+Copy compiled binaries there after building so they land somewhere predictable on the
+host for flashing, instead of digging through build directories inside the container -
+see each MCU's own doc (linked above) for the exact `cp` command. Override the
+location per MCU via `.env` (see `.env.example`), e.g. `ESP32C3_FIRMWARE_DIR`.
+

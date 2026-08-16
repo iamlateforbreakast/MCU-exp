@@ -43,3 +43,12 @@ through to the container via the `devices` entry in `compose.yaml`, then:
 ```
 idf.py -p /dev/ttyACM0 flash monitor
 ```
+
+## Firmware output
+
+`compose.yaml` also mounts a separate `firmware/ESP32-C3` host directory to `~/firmware`
+inside the container - copy the built binary there so it's easy to find on the host:
+
+```
+cp build/gpio_led_blink.bin ~/firmware/
+```

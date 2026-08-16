@@ -5,9 +5,9 @@ services:
       dockerfile: Dockerfile.ubuntu
     container_name: rtems-dev
     userns_mode: "keep-id"
-    user: "thomas"
+    user: "builder"
     volumes:
-      - /home/thomas/Projects/MCU-exp/workspace:/home/thomas/workspace:z,U
+      - /home/thomas/Projects/MCU-exp/workspace:/home/builder/workspace:z,U
     stdin_open: true
     tty: true
 
@@ -17,12 +17,12 @@ services:
       dockerfile: Dockerfile.renode
     container_name: renode-emu
     userns_mode: "keep-id"
-    user: "thomas"
+    user: "builder"
     ports:
       - "1024:1024" # Monitor port
       - "1234:1234" # GDB port
     volumes:
-      - /home/thomas/Projects/MCU-exp/workspace:/home/thomas/workspace:z,U
+      - /home/thomas/Projects/MCU-exp/workspace:/home/builder/workspace:z,U
     stdin_open: true
     tty: true
 
@@ -31,14 +31,15 @@ services:
       context: .
       dockerfile: Dockerfile.esp32c3
       args:
-        USERNAME: ${USERNAME:-thomas}
+        USERNAME: ${USERNAME:-builder}
         USER_UID: ${USER_UID:-1000}
         USER_GID: ${USER_GID:-1000}
     container_name: esp32c3-dev
     userns_mode: "keep-id"
-    user: "${USERNAME:-thomas}"
+    user: "${USERNAME:-builder}"
     volumes:
-      - ${ESP32C3_WORKSPACE_DIR:-./workspace/ESP32-C3}:/home/${USERNAME:-thomas}/workspace:z,U
+      - ${ESP32C3_WORKSPACE_DIR:-./workspace/ESP32-C3}:/home/${USERNAME:-builder}/workspace:z,U
+      - ${ESP32C3_FIRMWARE_DIR:-./firmware/ESP32-C3}:/home/${USERNAME:-builder}/firmware:z,U
     # Uncomment and adjust to the serial device exposed by the board on the host
     # in order to flash/monitor over USB (e.g. the ESP32-C3's native USB-CDC port).
     # devices:
@@ -51,14 +52,15 @@ services:
       context: .
       dockerfile: Dockerfile.rp2040
       args:
-        USERNAME: ${USERNAME:-thomas}
+        USERNAME: ${USERNAME:-builder}
         USER_UID: ${USER_UID:-1000}
         USER_GID: ${USER_GID:-1000}
     container_name: rp2040-dev
     userns_mode: "keep-id"
-    user: "${USERNAME:-thomas}"
+    user: "${USERNAME:-builder}"
     volumes:
-      - ${RP2040_WORKSPACE_DIR:-./workspace/RPI2040}:/home/${USERNAME:-thomas}/workspace:z,U
+      - ${RP2040_WORKSPACE_DIR:-./workspace/RPI2040}:/home/${USERNAME:-builder}/workspace:z,U
+      - ${RP2040_FIRMWARE_DIR:-./firmware/RPI2040}:/home/${USERNAME:-builder}/firmware:z,U
     # The RP2040 mounts as a USB mass storage device in BOOTSEL mode for drag-and-drop
     # UF2 flashing (usually handled from the host), and as /dev/ttyACM0 for USB-CDC
     # serial once running application firmware. Uncomment and adjust as needed.
@@ -72,14 +74,15 @@ services:
       context: .
       dockerfile: Dockerfile.rtl8720dn
       args:
-        USERNAME: ${USERNAME:-thomas}
+        USERNAME: ${USERNAME:-builder}
         USER_UID: ${USER_UID:-1000}
         USER_GID: ${USER_GID:-1000}
     container_name: rtl8720dn-dev
     userns_mode: "keep-id"
-    user: "${USERNAME:-thomas}"
+    user: "${USERNAME:-builder}"
     volumes:
-      - ${RTL8720DN_WORKSPACE_DIR:-./workspace/RTL8720DN}:/home/${USERNAME:-thomas}/workspace:z,U
+      - ${RTL8720DN_WORKSPACE_DIR:-./workspace/RTL8720DN}:/home/${USERNAME:-builder}/workspace:z,U
+      - ${RTL8720DN_FIRMWARE_DIR:-./firmware/RTL8720DN}:/home/${USERNAME:-builder}/firmware:z,U
     # Uncomment and adjust to the USB-serial adapter exposed by the BW16 board on
     # the host in order to flash it (e.g. via upload_image_tool_linux).
     # devices:
@@ -92,19 +95,20 @@ services:
       context: .
       dockerfile: Dockerfile.luckfoxpico
       args:
-        USERNAME: ${USERNAME:-thomas}
+        USERNAME: ${USERNAME:-builder}
         USER_UID: ${USER_UID:-1000}
         USER_GID: ${USER_GID:-1000}
     container_name: luckfoxpico-dev
     userns_mode: "keep-id"
-    user: "${USERNAME:-thomas}"
+    user: "${USERNAME:-builder}"
     # Buildroot's SDK build needs loop-mount/chroot access to assemble rootfs images,
     # hence privileged mode (matches the vendor's documented `podman run --privileged`
     # usage). This grants the container broad host access - only use this service on
     # a trusted host.
     privileged: true
     volumes:
-      - ${LUCKFOXPICO_WORKSPACE_DIR:-./workspace/Luckfoxpico}:/home/${USERNAME:-thomas}/workspace:z,U
+      - ${LUCKFOXPICO_WORKSPACE_DIR:-./workspace/Luckfoxpico}:/home/${USERNAME:-builder}/workspace:z,U
+      - ${LUCKFOXPICO_FIRMWARE_DIR:-./firmware/Luckfoxpico}:/home/${USERNAME:-builder}/firmware:z,U
     stdin_open: true
     tty: true
 
@@ -113,14 +117,15 @@ services:
       context: .
       dockerfile: Dockerfile.aim62
       args:
-        USERNAME: ${USERNAME:-thomas}
+        USERNAME: ${USERNAME:-builder}
         USER_UID: ${USER_UID:-1000}
         USER_GID: ${USER_GID:-1000}
     container_name: aim62-dev
     userns_mode: "keep-id"
-    user: "${USERNAME:-thomas}"
+    user: "${USERNAME:-builder}"
     volumes:
-      - ${AIM62_WORKSPACE_DIR:-./workspace/AI-MF62-AiThinker}:/home/${USERNAME:-thomas}/workspace:z,U
+      - ${AIM62_WORKSPACE_DIR:-./workspace/AI-MF62-AiThinker}:/home/${USERNAME:-builder}/workspace:z,U
+      - ${AIM62_FIRMWARE_DIR:-./firmware/AI-MF62-AiThinker}:/home/${USERNAME:-builder}/firmware:z,U
     # Uncomment and adjust to the USB-serial adapter exposed by the M62-M2-I-Kit on
     # the host in order to flash/monitor it.
     # devices:
