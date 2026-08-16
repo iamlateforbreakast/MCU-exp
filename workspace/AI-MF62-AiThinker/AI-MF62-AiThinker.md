@@ -36,6 +36,17 @@ relative path). Adjust `CHIP`/`BOARD` to match your module, and `LED_PIN_*` in
 Pass the board's USB-serial device through via the commented `devices` entry in
 `compose.yaml`.
 
+## Firmware output
+
+`compose.yaml` also mounts a separate `firmware/AI-MF62-AiThinker` host directory to
+`~/firmware` inside the container - copy the built binary there so it's easy to find
+on the host (the SDK's `make` puts output under `build/build_out/` next to the
+project, e.g. `helloworld_bl616.bin` for the `helloworld` example):
+
+```
+cp build/build_out/*.bin ~/firmware/
+```
+
 ---
 
 # Manual setup notes (outside the container)

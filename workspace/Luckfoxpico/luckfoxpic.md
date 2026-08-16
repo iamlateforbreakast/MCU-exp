@@ -28,6 +28,17 @@ GPIO interface - it runs directly on the board (over SSH/serial), not in this
 cross-build container. See `examples/gpio_led_blink/README.md` for usage and a
 `libgpiod` alternative.
 
+## Firmware output
+
+`compose.yaml` also mounts a separate `firmware/Luckfoxpico` host directory to
+`~/firmware` inside the container - copy the Buildroot-built images there so they're
+easy to find on the host (Buildroot's own output images land under `output/images/`
+within the SDK):
+
+```
+cp ~/workspace/luckfox-pico/output/images/*.img ~/firmware/
+```
+
 ---
 
 # Manual setup notes (outside the container)

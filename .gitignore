@@ -1,0 +1,5 @@
+# Compiled firmware images land here (see compose.yaml's *_FIRMWARE_DIR mounts) -
+# build artifacts, not source, so ignore everything except the placeholders that
+# keep these directories present in git.
+firmware/*/*
+!firmware/*/.gitkeep
