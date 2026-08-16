@@ -1,0 +1,66 @@
+# Dockerfile to build a container image for AI Thinker M62 (Ai-M6X family) development.
+# The SDK bundles its own riscv64-unknown-elf toolchain under tools/ (used instead of a
+# distro-installed cross compiler), so gcc-riscv64-unknown-elf here is just a baseline.
+# Intended for use with podman (see compose.yaml, which relies on userns_mode: keep-id
+# to map the host user's UID/GID into the container).
+FROM ubuntu:24.04
+
+LABEL com.github.containers.toolbox="true" \
+      com.github.debarshiray.toolbox="true"
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && \
+    apt-get -y upgrade && \
+    apt-get install -y \
+        build-essential \
+        cmake \
+        gcc-riscv64-unknown-elf \
+        gdb-multiarch \
+        git \
+        libusb-1.0-0 \
+        libusb-1.0-0-dev \
+        ninja-build \
+        python3 \
+        python3-pip \
+        python3-venv \
+        sudo \
+        udev \
+        unzip \
+        wget && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Username and UID/GID are configurable so the container's user can match the
+# host user podman maps in via userns_mode: keep-id.
+ARG USERNAME=thomas
+ARG USER_UID=1000
+ARG USER_GID=${USER_UID}
+
+# ubuntu:24.04 ships a stock "ubuntu" user/group at 1000:1000; remove it so the
+# configurable UID/GID below don't collide with it.
+# Added to sudo and dialout groups (dialout for serial/USB flashing access)
+RUN userdel -r ubuntu && \
+    groupadd -g ${USER_GID} ${USERNAME} && \
+    useradd -u ${USER_UID} -g ${USER_GID} -c "AI-M62 Developer" \
+            -G sudo,dialout -d "/home/${USERNAME}" --create-home "${USERNAME}" && \
+    export PS1="\[\033[01;34m\](podman) \[\033[00m\]\u@\h:\w\$ " >> /home/${USERNAME}/.bashrc
+
+# Allow sudo without password
+RUN echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+RUN touch /etc/localtime
+RUN echo VARIANT_ID=container >> /etc/os-release
+
+USER ${USERNAME}
+WORKDIR /home/${USERNAME}
+
+ENV AIM62_SDK_PATH=/home/${USERNAME}/aithinker_Ai-M6X_SDK
+
+# Fetch the Ai-Thinker M6X SDK and its tools submodules (bundled cross toolchain, etc.)
+RUN git clone https://github.com/Ai-Thinker-Open/aithinker_Ai-M6X_SDK.git ${AIM62_SDK_PATH} && \
+    cd ${AIM62_SDK_PATH}/tools && \
+    git submodule init && \
+    git submodule update .
+
+CMD ["/bin/bash"]
