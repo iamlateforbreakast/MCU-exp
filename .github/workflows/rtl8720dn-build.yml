@@ -1,0 +1,42 @@
+name: Build RTL8720DN dev image
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "Dockerfile.rtl8720dn"
+      - "compose.yaml"
+      - ".github/workflows/rtl8720dn-build.yml"
+  pull_request:
+    paths:
+      - "Dockerfile.rtl8720dn"
+      - "compose.yaml"
+      - ".github/workflows/rtl8720dn-build.yml"
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build rtl8720dn-dev image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.rtl8720dn
+          push: false
+          load: true
+          tags: rtl8720dn-dev:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Sanity-check toolchain and SDK inside the image
+        run: |
+          docker run --rm rtl8720dn-dev:ci bash -c \
+            'arm-none-eabi-gcc --version && test -d "$HOME/ameba-rtos" && test -d "$HOME/ameba_bw16_autoflash"'

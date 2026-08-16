@@ -1,3 +1,37 @@
+# RTL8720DN (BW16) development container
+
+The `rtl8720dn-dev` container (see `Dockerfile.rtl8720dn` / `compose.yaml`) provides the
+arm-none-eabi GCC toolchain, the Realtek AmebaD SDK (cloned to `~/ameba-rtos`), and the
+`ameba_bw16_autoflash` flash tool (cloned to `~/ameba_bw16_autoflash`).
+
+## Usage
+
+```
+podman compose up -d rtl8720dn-dev
+podman exec -it rtl8720dn-dev /bin/bash
+```
+
+## Building a project
+
+The BW16 requires building for two separate cores (KM0 for Low Power, KM4 for High Power):
+
+```
+cd ~/ameba-rtos/project/realtek_amebaD_va0_example/GCC-RELEASE/project_lp
+make all
+cd ../project_hp
+make all
+```
+
+## Flashing
+
+Pass the board's USB-serial device through via the commented `devices` entry in
+`compose.yaml`, then use `~/ameba_bw16_autoflash` (see its own README) or the Realtek
+`upload_image_tool_linux` against `/dev/ttyUSB0` as described below.
+
+---
+
+# Manual setup notes (outside the container)
+
 How to compile projects for the AI Thinker BW16 (RTL8720DN) on Fedora 42 in WSL
 
 ## GCC toolchain for ARM M0 and M3

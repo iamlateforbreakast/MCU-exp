@@ -66,3 +66,23 @@ services:
     #   - "/dev/ttyACM0:/dev/ttyACM0"
     stdin_open: true
     tty: true
+
+  rtl8720dn-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.rtl8720dn
+      args:
+        USERNAME: ${USERNAME:-thomas}
+        USER_UID: ${USER_UID:-1000}
+        USER_GID: ${USER_GID:-1000}
+    container_name: rtl8720dn-dev
+    userns_mode: "keep-id"
+    user: "${USERNAME:-thomas}"
+    volumes:
+      - ${WORKSPACE_DIR:-./workspace}:/home/${USERNAME:-thomas}/workspace:z,U
+    # Uncomment and adjust to the USB-serial adapter exposed by the BW16 board on
+    # the host in order to flash it (e.g. via upload_image_tool_linux).
+    # devices:
+    #   - "/dev/ttyUSB0:/dev/ttyUSB0"
+    stdin_open: true
+    tty: true
