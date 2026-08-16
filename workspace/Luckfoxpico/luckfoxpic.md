@@ -19,7 +19,7 @@ podman compose up -d luckfoxpico-dev
 podman exec -it luckfoxpico-dev /bin/bash
 ```
 
-Inside the container, the SDK is available under `~/workspace/Luckfoxpico/luckfox-pico`.
+Inside the container, the SDK is available under `~/workspace/luckfox-pico`.
 
 ## GPIO LED example
 

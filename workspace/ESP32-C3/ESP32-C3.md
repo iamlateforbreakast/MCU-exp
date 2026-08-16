@@ -28,7 +28,7 @@ idf.py build
 flash it like any ESP-IDF project:
 
 ```
-cd ~/workspace/ESP32-C3/examples/gpio_led_blink
+cd ~/workspace/examples/gpio_led_blink
 idf.py set-target esp32c3
 idf.py -p /dev/ttyACM0 flash monitor
 ```

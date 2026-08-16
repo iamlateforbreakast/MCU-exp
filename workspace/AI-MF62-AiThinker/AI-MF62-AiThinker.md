@@ -22,7 +22,7 @@ cd $AIM62_SDK_PATH/examples/helloworld
 (following the SDK's own `examples/peripherals/gpio/gpio_input_output`):
 
 ```
-cd ~/workspace/AI-MF62-AiThinker/examples/gpio_led_blink
+cd ~/workspace/examples/gpio_led_blink
 make BL_SDK_BASE=$AIM62_SDK_PATH CHIP=bl616 BOARD=bl616dk
 ```
 
