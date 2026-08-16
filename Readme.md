@@ -7,6 +7,7 @@ Docker files are provided:
 - One to build rtems 7 and compile binary image with SPARC and RISC architectures
 - One with Renode to execute the compiled binaries
 - One with the ESP-IDF toolchain to develop for the ESP32-C3
+- One with the Pico SDK toolchain to develop for the RP2040
 
 ## Building RTEMS 7
 
@@ -43,4 +44,16 @@ idf.py build
 
 See `workspace/ESP32-C3/ESP32-C3.md` for details, including flashing over the board's USB-CDC
 serial port.
+
+## RP2040 development
+
+```
+podman compose up -d rp2040-dev
+podman exec -it rp2040-dev /bin/bash
+cmake -S . -B build -G Ninja
+cmake --build build
+```
+
+See `workspace/RPI2040/RaspberryPico.md` for details, including flashing over the board's
+BOOTSEL mass-storage mode.
 
