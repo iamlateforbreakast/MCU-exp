@@ -1,0 +1,42 @@
+name: Build RP2040 dev image
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "Dockerfile.rp2040"
+      - "compose.yaml"
+      - ".github/workflows/rp2040-build.yml"
+  pull_request:
+    paths:
+      - "Dockerfile.rp2040"
+      - "compose.yaml"
+      - ".github/workflows/rp2040-build.yml"
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build rp2040-dev image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.rp2040
+          push: false
+          load: true
+          tags: rp2040-dev:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Sanity-check toolchain and Pico SDK inside the image
+        run: |
+          docker run --rm rp2040-dev:ci bash -c \
+            'arm-none-eabi-gcc --version && test -f "$PICO_SDK_PATH/pico_sdk_init.cmake"'
