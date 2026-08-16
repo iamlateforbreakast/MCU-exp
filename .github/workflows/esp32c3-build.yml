@@ -39,4 +39,4 @@ jobs:
       - name: Sanity-check idf.py inside the image
         run: |
           docker run --rm esp32c3-dev:ci bash -c \
-            'source /home/thomas/esp-idf/export.sh > /dev/null && idf.py --version'
+            'source /home/builder/esp-idf/export.sh > /dev/null && idf.py --version'

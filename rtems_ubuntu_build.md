@@ -10,7 +10,7 @@ first step is to create a Ubuntu image with a developper user and updated for de
 
 ```
 podmap images
-podman run -it --userns=keep-id -v /home/thomas/Projects/rtems-build/workspace:/home/thomas/workspace:Z,U rtems_build
+podman run -it --userns=keep-id -v /home/thomas/Projects/rtems-build/workspace:/home/builder/workspace:Z,U rtems_build
 podman start -ait <Container id>
 
 ```
