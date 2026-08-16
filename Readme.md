@@ -8,6 +8,7 @@ Docker files are provided:
 - One with Renode to execute the compiled binaries
 - One with the ESP-IDF toolchain to develop for the ESP32-C3
 - One with the Pico SDK toolchain to develop for the RP2040
+- One with the Realtek AmebaD SDK toolchain to develop for the RTL8720DN (BW16)
 
 ## Building RTEMS 7
 
@@ -56,4 +57,15 @@ cmake --build build
 
 See `workspace/RPI2040/RaspberryPico.md` for details, including flashing over the board's
 BOOTSEL mass-storage mode.
+
+## RTL8720DN (BW16) development
+
+```
+podman compose up -d rtl8720dn-dev
+podman exec -it rtl8720dn-dev /bin/bash
+cd ~/ameba-rtos/project/realtek_amebaD_va0_example/GCC-RELEASE/project_lp && make all
+cd ../project_hp && make all
+```
+
+See `workspace/RTL8720DN/RTL8720DN.md` for details, including flashing over USB-serial.
 
