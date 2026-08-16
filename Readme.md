@@ -92,3 +92,20 @@ cd $AIM62_SDK_PATH/examples/helloworld
 
 See `workspace/AI-MF62-AiThinker/AI-MF62-AiThinker.md` for details.
 
+## GPIO LED examples
+
+Each MCU's workspace directory has an `examples/gpio_led_blink` project that drives a
+few LEDs in sequence, using that platform's own GPIO API (grounded against each
+vendor SDK's own examples where applicable):
+
+| MCU | Path | API |
+| --- | --- | --- |
+| ESP32-C3 | `workspace/ESP32-C3/examples/gpio_led_blink` | ESP-IDF `driver/gpio.h` |
+| RP2040 | `workspace/RPI2040/examples/gpio_led_blink` | Pico SDK `pico/stdlib.h` |
+| RTL8720DN | `workspace/RTL8720DN/examples/gpio_led_blink` | Ameba raw GPIO (`GPIO_Init`/`GPIO_WriteBit`) |
+| Luckfox Pico | `workspace/Luckfoxpico/examples/gpio_led_blink` | sysfs (on-device shell script) |
+| AI-M62 | `workspace/AI-MF62-AiThinker/examples/gpio_led_blink` | Bouffalo `bflb_gpio` |
+
+Every example uses placeholder GPIO pin numbers - adjust them to match how you've
+actually wired the LEDs on your board before building/flashing.
+

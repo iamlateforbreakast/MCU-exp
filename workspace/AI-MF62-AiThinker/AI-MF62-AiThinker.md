@@ -16,6 +16,21 @@ podman exec -it aim62-dev /bin/bash
 cd $AIM62_SDK_PATH/examples/helloworld
 ```
 
+## GPIO LED example
+
+`examples/gpio_led_blink` drives three LEDs in sequence using the `bflb_gpio` API
+(following the SDK's own `examples/peripherals/gpio/gpio_input_output`):
+
+```
+cd ~/workspace/AI-MF62-AiThinker/examples/gpio_led_blink
+make BL_SDK_BASE=$AIM62_SDK_PATH CHIP=bl616 BOARD=bl616dk
+```
+
+`BL_SDK_BASE` is passed explicitly since this example lives outside the SDK tree,
+unlike the SDK's own `examples/peripherals/...` (whose Makefile finds it via a
+relative path). Adjust `CHIP`/`BOARD` to match your module, and `LED_PIN_*` in
+`main.c` to match your wiring.
+
 ## Flashing
 
 Pass the board's USB-serial device through via the commented `devices` entry in

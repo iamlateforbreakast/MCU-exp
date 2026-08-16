@@ -22,6 +22,21 @@ cd ../project_hp
 make all
 ```
 
+## GPIO LED example
+
+`examples/gpio_led_blink/gpio_led_blink.c` drives three LEDs in sequence using the raw
+GPIO API (`GPIO_InitTypeDef`/`GPIO_Init`/`GPIO_WriteBit` from `ameba_soc.h`), verified
+against `ameba-rtos`'s own `example/peripheral/raw/GPIO/raw_gpio_rw`. Adjust `LED_PIN_*`
+to match your wiring, then call `gpio_led_blink()` from an example project's `main()`.
+
+**Note:** the container clones the current `Ameba-AIoT/ameba-rtos` monorepo, which has
+no `project/` directory - the `project/realtek_amebaD_va0_example/GCC-RELEASE/...`
+build flow further down this file is for the older, now-archived `ameba-rtos-d` SDK and
+does not apply here. The new repo's own build/flash flow for `example/peripheral/...`
+projects isn't documented in the public GitHub README (it defers to Realtek's offline
+SDK docs) - consult those, or `ameba-rtos-d`, to actually wire this file into a
+buildable project.
+
 ## Flashing
 
 Pass the board's USB-serial device through via the commented `devices` entry in

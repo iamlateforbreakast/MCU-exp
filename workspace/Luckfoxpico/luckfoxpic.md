@@ -21,6 +21,13 @@ podman exec -it luckfoxpico-dev /bin/bash
 
 Inside the container, the SDK is available under `~/workspace/Luckfoxpico/luckfox-pico`.
 
+## GPIO LED example
+
+`examples/gpio_led_blink/gpio_led_blink.sh` drives three LEDs in sequence via the sysfs
+GPIO interface - it runs directly on the board (over SSH/serial), not in this
+cross-build container. See `examples/gpio_led_blink/README.md` for usage and a
+`libgpiod` alternative.
+
 ---
 
 # Manual setup notes (outside the container)
