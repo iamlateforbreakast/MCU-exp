@@ -38,7 +38,7 @@ services:
     userns_mode: "keep-id"
     user: "${USERNAME:-thomas}"
     volumes:
-      - ${WORKSPACE_DIR:-./workspace}:/home/${USERNAME:-thomas}/workspace:z,U
+      - ${ESP32C3_WORKSPACE_DIR:-./workspace/ESP32-C3}:/home/${USERNAME:-thomas}/workspace:z,U
     # Uncomment and adjust to the serial device exposed by the board on the host
     # in order to flash/monitor over USB (e.g. the ESP32-C3's native USB-CDC port).
     # devices:
@@ -58,7 +58,7 @@ services:
     userns_mode: "keep-id"
     user: "${USERNAME:-thomas}"
     volumes:
-      - ${WORKSPACE_DIR:-./workspace}:/home/${USERNAME:-thomas}/workspace:z,U
+      - ${RP2040_WORKSPACE_DIR:-./workspace/RPI2040}:/home/${USERNAME:-thomas}/workspace:z,U
     # The RP2040 mounts as a USB mass storage device in BOOTSEL mode for drag-and-drop
     # UF2 flashing (usually handled from the host), and as /dev/ttyACM0 for USB-CDC
     # serial once running application firmware. Uncomment and adjust as needed.
@@ -79,7 +79,7 @@ services:
     userns_mode: "keep-id"
     user: "${USERNAME:-thomas}"
     volumes:
-      - ${WORKSPACE_DIR:-./workspace}:/home/${USERNAME:-thomas}/workspace:z,U
+      - ${RTL8720DN_WORKSPACE_DIR:-./workspace/RTL8720DN}:/home/${USERNAME:-thomas}/workspace:z,U
     # Uncomment and adjust to the USB-serial adapter exposed by the BW16 board on
     # the host in order to flash it (e.g. via upload_image_tool_linux).
     # devices:
@@ -104,7 +104,7 @@ services:
     # a trusted host.
     privileged: true
     volumes:
-      - ${WORKSPACE_DIR:-./workspace}:/home/${USERNAME:-thomas}/workspace:z,U
+      - ${LUCKFOXPICO_WORKSPACE_DIR:-./workspace/Luckfoxpico}:/home/${USERNAME:-thomas}/workspace:z,U
     stdin_open: true
     tty: true
 
@@ -120,7 +120,7 @@ services:
     userns_mode: "keep-id"
     user: "${USERNAME:-thomas}"
     volumes:
-      - ${WORKSPACE_DIR:-./workspace}:/home/${USERNAME:-thomas}/workspace:z,U
+      - ${AIM62_WORKSPACE_DIR:-./workspace/AI-MF62-AiThinker}:/home/${USERNAME:-thomas}/workspace:z,U
     # Uncomment and adjust to the USB-serial adapter exposed by the M62-M2-I-Kit on
     # the host in order to flash/monitor it.
     # devices:

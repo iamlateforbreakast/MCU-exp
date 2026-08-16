@@ -25,7 +25,7 @@ cmake --build build
 `examples/gpio_led_blink` drives three LEDs in sequence using `pico/stdlib.h`:
 
 ```
-cd ~/workspace/RPI2040/examples/gpio_led_blink
+cd ~/workspace/examples/gpio_led_blink
 cmake -S . -B build -G Ninja
 cmake --build build
 ```
