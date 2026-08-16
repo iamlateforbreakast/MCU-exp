@@ -10,6 +10,7 @@ Docker files are provided:
 - One with the Pico SDK toolchain to develop for the RP2040
 - One with the Realtek AmebaD SDK toolchain to develop for the RTL8720DN (BW16)
 - One based on the vendor image to develop for the Luckfox Pico (RV1103/RV1106)
+- One with the Ai-M6X SDK toolchain to develop for the AI Thinker M62 (M62-M2-I-Kit)
 
 ## Building RTEMS 7
 
@@ -80,4 +81,14 @@ podman exec -it luckfoxpico-dev /bin/bash
 
 See `workspace/Luckfoxpico/luckfoxpic.md` for details. This container runs privileged
 (needed for the Buildroot SDK's rootfs build) - only use it on a trusted host.
+
+## AI Thinker M62 development
+
+```
+podman compose up -d aim62-dev
+podman exec -it aim62-dev /bin/bash
+cd $AIM62_SDK_PATH/examples/helloworld
+```
+
+See `workspace/AI-MF62-AiThinker/AI-MF62-AiThinker.md` for details.
 
