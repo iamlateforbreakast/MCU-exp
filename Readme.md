@@ -9,6 +9,7 @@ Docker files are provided:
 - One with the ESP-IDF toolchain to develop for the ESP32-C3
 - One with the Pico SDK toolchain to develop for the RP2040
 - One with the Realtek AmebaD SDK toolchain to develop for the RTL8720DN (BW16)
+- One based on the vendor image to develop for the Luckfox Pico (RV1103/RV1106)
 
 ## Building RTEMS 7
 
@@ -68,4 +69,15 @@ cd ../project_hp && make all
 ```
 
 See `workspace/RTL8720DN/RTL8720DN.md` for details, including flashing over USB-serial.
+
+## Luckfox Pico development
+
+```
+git clone https://github.com/LuckfoxTECH/luckfox-pico.git workspace/Luckfoxpico/luckfox-pico
+podman compose up -d luckfoxpico-dev
+podman exec -it luckfoxpico-dev /bin/bash
+```
+
+See `workspace/Luckfoxpico/luckfoxpic.md` for details. This container runs privileged
+(needed for the Buildroot SDK's rootfs build) - only use it on a trusted host.
 

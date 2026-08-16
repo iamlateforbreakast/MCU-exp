@@ -86,3 +86,24 @@ services:
     #   - "/dev/ttyUSB0:/dev/ttyUSB0"
     stdin_open: true
     tty: true
+
+  luckfoxpico-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.luckfoxpico
+      args:
+        USERNAME: ${USERNAME:-thomas}
+        USER_UID: ${USER_UID:-1000}
+        USER_GID: ${USER_GID:-1000}
+    container_name: luckfoxpico-dev
+    userns_mode: "keep-id"
+    user: "${USERNAME:-thomas}"
+    # Buildroot's SDK build needs loop-mount/chroot access to assemble rootfs images,
+    # hence privileged mode (matches the vendor's documented `podman run --privileged`
+    # usage). This grants the container broad host access - only use this service on
+    # a trusted host.
+    privileged: true
+    volumes:
+      - ${WORKSPACE_DIR:-./workspace}:/home/${USERNAME:-thomas}/workspace:z,U
+    stdin_open: true
+    tty: true
