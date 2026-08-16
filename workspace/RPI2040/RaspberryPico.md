@@ -20,6 +20,19 @@ cmake -S . -B build -G Ninja
 cmake --build build
 ```
 
+## GPIO LED example
+
+`examples/gpio_led_blink` drives three LEDs in sequence using `pico/stdlib.h`:
+
+```
+cd ~/workspace/RPI2040/examples/gpio_led_blink
+cmake -S . -B build -G Ninja
+cmake --build build
+```
+
+Adjust the `LED_GPIO_*` pin numbers in `gpio_led_blink.c` to match your wiring (GPIO 25
+is the onboard LED on a stock Pico/Pico W).
+
 ## Flashing
 
 Hold BOOTSEL while plugging in the board (or while resetting it) so it mounts as a USB mass

@@ -22,6 +22,19 @@ idf.py set-target esp32c3
 idf.py build
 ```
 
+## GPIO LED example
+
+`examples/gpio_led_blink` drives three LEDs in sequence using `driver/gpio.h`. Build and
+flash it like any ESP-IDF project:
+
+```
+cd ~/workspace/ESP32-C3/examples/gpio_led_blink
+idf.py set-target esp32c3
+idf.py -p /dev/ttyACM0 flash monitor
+```
+
+Adjust the `LED_GPIO_*` pin numbers in `main/gpio_led_blink.c` to match your wiring.
+
 ## Flashing and monitoring
 
 The ESP32-C3 exposes a native USB-CDC serial port (typically `/dev/ttyACM0` on Linux). Pass it

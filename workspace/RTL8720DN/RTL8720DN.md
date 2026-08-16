@@ -22,6 +22,21 @@ cd ../project_hp
 make all
 ```
 
+## GPIO LED example
+
+`examples/gpio_led_blink/gpio_led_blink.c` drives three LEDs in sequence using the raw
+GPIO API (`GPIO_InitTypeDef`/`GPIO_Init`/`GPIO_WriteBit` from `ameba_soc.h`, following
+`ameba-rtos`'s own `example/peripheral/raw/GPIO/raw_gpio_rw`). Drop it into the KM4
+(High Power) project and call `gpio_led_blink()` from `main()`:
+
+```
+cp examples/gpio_led_blink/gpio_led_blink.c \
+   ~/ameba-rtos/project/realtek_amebaD_va0_example/src/src_hp/
+```
+
+(add the file to the project's build and call `gpio_led_blink()` from `main()`, then
+build KM0/KM4 as below). Adjust `LED_PIN_*` to match your wiring.
+
 ## Flashing
 
 Pass the board's USB-serial device through via the commented `devices` entry in
