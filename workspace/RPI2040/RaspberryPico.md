@@ -100,31 +100,41 @@ axis came out mirrored, fixed in `fb_set_pixel` rather than in the SSD1681 comma
 sequence itself. If nothing draws at all, watch for the
 `epd_init: timed out waiting for BUSY` message and check wiring first.
 
-## 1.3" SH1106 OLED example (SPI)
+## GMG12864-06D LCD example (ST7565R, SPI)
 
-`examples/oled_1in3_sh1106_spi` drives a 1.3" 128x64 monochrome OLED (SH1106
-controller - the near-universal chip for this specific size, distinct from the
-SSD1306 used on the more common 0.96" size) - draws a border, then animates a small
-square scanning back and forth:
+`examples/lcd_12864_st7565_spi` drives a GMG12864-06D 128x64 monochrome graphic LCD
+(ST7565R controller) - draws a border, then animates a small square scanning back and
+forth:
 
 ```
-cd ~/workspace/examples/oled_1in3_sh1106_spi
+cd ~/workspace/examples/lcd_12864_st7565_spi
 cmake -S . -B build -G Ninja
 cmake --build build
 ```
 
-Wire (using this module's own pin labels) SI to GPIO3, SCL to GPIO2, CS to GPIO1, RS
-to GPIO0, RSE to GPIO4, VDD to 3V3, plus GND. The init sequence and the SH1106's +2
-column RAM offset come from the u8g2 graphics
-library's actual SH1106 driver, not written from memory. Unlike the other SPI
-examples here, there's no BUSY pin to detect bad wiring - if nothing lights up, it's
-wiring/power, not something the code can diagnose.
+**This was originally built as an SH1106 OLED example** based on the seller listing
+alone, and didn't work - the module turned out to be an ST7565R-driven LCD instead (a
+different chip family, identified from the board's own part number), which is why: the
+command set an OLED understands is meaningless to this chip, and ST7565-family LCDs
+need a staged internal voltage-regulator/booster power-up sequence with real delays
+between stages, absent from OLED init entirely, that produces a blank screen if missing
+or wrong. The lesson: a seller's product title ("OLED") isn't the same as the actual
+driver chip - when in doubt, check the board's own silkscreen/part number.
 
-**Not verified against this specific module:** the segment-remap/COM-scan-direction
-commands (0xA1/0xC8) - the reference driver relies on chip defaults for a different
-physical module, so if the border/animation appears mirrored or flipped, try toggling
-`0xA1`<->`0xA0` and/or `0xC8`<->`0xC0` in `oled_init()` (see the file's header comment,
-which walks through the same class of orientation issue the e-paper example hit).
+Wire (using this module's own 13-pin header labels) CS to GPIO1, RSE (reset) to GPIO4,
+RS (DC) to GPIO0, SCL to GPIO2, SI (MOSI) to GPIO3, VDD to 3V3, VSS to GND. Backlight: A
+(anode) to 3V3 through a current-limiting resistor (~100-220ohm), K (cathode) to GND -
+wired directly, not through a GPIO. The four C_* pins on the header are internal
+factory/test pins and aren't connected. The init sequence (LCD bias, ADC/COM direction,
+the three-stage power control ramp, resistor ratio, contrast, display-on) and page/
+column addressing come from Adafruit's actual ST7565 driver, not written from memory.
+Unlike the other SPI examples here, there's no BUSY pin to detect bad wiring - if
+nothing lights up, it's wiring/power, not something the code can diagnose.
+
+**Contrast is a guess:** the reference driver's own default (0) is likely too low to
+see anything; `LCD_CONTRAST` here uses a moderate mid-range value instead as a visible
+starting point - if the display looks all-dark or all-blank once wiring is confirmed
+good, adjust it (valid range 0-0x3F).
 
 ## Flashing
 
