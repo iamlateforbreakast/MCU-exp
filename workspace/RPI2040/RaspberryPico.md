@@ -100,6 +100,41 @@ axis came out mirrored, fixed in `fb_set_pixel` rather than in the SSD1681 comma
 sequence itself. If nothing draws at all, watch for the
 `epd_init: timed out waiting for BUSY` message and check wiring first.
 
+## 1.3" SH1106 OLED example (SPI)
+
+`examples/oled_1in3_sh1106_spi` drives a genuine 1.3" 128x64 monochrome OLED
+module (SH1106 controller) - draws a border, then animates a small square
+scanning back and forth:
+
+```
+cd ~/workspace/examples/oled_1in3_sh1106_spi
+cmake -S . -B build -G Ninja
+cmake --build build
+```
+
+**Not the same product as the GMG12864-06D LCD example below** - an earlier
+"1.3in OLED" AliExpress listing turned out on inspection to actually be that
+ST7565R-driven LCD, a completely different chip/protocol, rather than a true
+OLED. This example is for an actual SH1106 OLED module; check your board's
+own part number/silkscreen if unsure which you have, since the two are easy
+to conflate from a seller listing alone.
+
+Wire (this module's own labeled pinout) SI (MOSI) to GPIO3, SCL (SCK) to
+GPIO2, CS to GPIO1, RS (DC) to GPIO0, RSE (RST) to GPIO4, VDD to 3V3, plus
+GND. The init sequence, the SH1106's +2 column RAM offset, and the page/
+column addressing commands are taken from the u8g2 graphics library's actual
+SH1106 driver, fetched and cross-checked rather than written from memory.
+SPI clock is deliberately lowered to 1MHz (u8g2's own maintainers reduced
+their default from 8MHz after reliability reports).
+
+**Unverified:** the segment-remap (0xA1) and COM-scan-direction (0xC8)
+commands are a guess for generic/clone SH1106 boards, not confirmed against
+this specific module (u8g2's own reference sequence omits both). If the
+border/animation appears mirrored or flipped, try toggling 0xA1<->0xA0
+and/or 0xC8<->0xC0 in `oled_init()`. Unlike the e-paper example, there's no
+BUSY pin to detect bad wiring - if nothing lights up, it's wiring/power, not
+something the code can diagnose.
+
 ## GMG12864-06D LCD example (ST7565R, SPI)
 
 `examples/lcd_12864_st7565_spi` drives a GMG12864-06D 128x64 monochrome graphic LCD
