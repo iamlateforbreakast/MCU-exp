@@ -51,6 +51,13 @@ SDO pin high instead of low. After flashing, connect at any baud rate (e.g.
 `minicom -D /dev/ttyACM0`) to see the readings - USB CDC ignores the actual baud
 setting.
 
+**If you see `0.00`/`0.00` (or nothing) instead of real readings:** the sensor isn't
+ACKing on the I2C bus. The example now checks every I2C transaction and retries with a
+loud, repeating error - `BMP280 not responding at I2C address 0x76 ...` - instead of
+silently continuing with uninitialized data, so reconnect your terminal and check for
+that message. Most commonly this means the address is actually `0x77` (try changing
+`BMP280_I2C_ADDR`), or SDA/SCL need external ~4.7k pull-ups.
+
 ## Flashing
 
 Hold BOOTSEL while plugging in the board (or while resetting it) so it mounts as a USB mass
