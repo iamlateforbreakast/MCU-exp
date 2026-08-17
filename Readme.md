@@ -114,6 +114,7 @@ actually wired the LEDs on your board before building/flashing.
 | MCU | Path | Notes |
 | --- | --- | --- |
 | RP2040 | `workspace/RPI2040/examples/bmp280_i2c` | Reads temperature/pressure from a Bosch BMP280 over I2C, printed over USB serial. Grounded against Bosch's official fixed-point compensation formula and the official `pico-examples/i2c/bmp280_i2c` pinout. |
+| RP2040 | `workspace/RPI2040/examples/bmp280_spi` | Same BMP280 example over SPI instead of I2C. Grounded against the official `pico-examples/spi/bme280_spi` pinout/protocol (same SPI convention as BMP280). |
 
 ## Firmware output
 
