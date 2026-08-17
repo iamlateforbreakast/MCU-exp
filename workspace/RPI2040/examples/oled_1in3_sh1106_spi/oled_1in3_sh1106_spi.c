@@ -51,7 +51,10 @@
 #define CS_PIN 1
 #define DC_PIN 0
 #define RST_PIN 4
-#define SPI_BAUDRATE (8 * 1000 * 1000) /* SH1106 supports faster; conservative default */
+/* u8g2's maintainers lowered their own SH1106 default from 8MHz to 4MHz after
+ * reliability reports (github.com/olikraus/u8g2 issue #750/#551); going lower
+ * still since breadboard/jumper wiring has worse signal integrity than a PCB. */
+#define SPI_BAUDRATE (1 * 1000 * 1000)
 
 #define OLED_WIDTH 128
 #define OLED_HEIGHT 64
@@ -209,6 +212,9 @@ int main(void)
 
     printf("Initializing 1.3in SH1106 OLED...\n");
     oled_init();
+    printf("Init sequence sent, entering animation loop. If the screen is still "
+           "blank, this confirms the RP2040 is running fine and the problem is "
+           "downstream (wiring/power/chip) rather than a hang in oled_init().\n");
 
     const int square = 10;
     int x = 0;
