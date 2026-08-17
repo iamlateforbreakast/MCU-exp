@@ -115,6 +115,7 @@ actually wired the LEDs on your board before building/flashing.
 | --- | --- | --- |
 | RP2040 | `workspace/RPI2040/examples/bmp280_i2c` | Reads temperature/pressure from a Bosch BMP280 over I2C, printed over USB serial. Grounded against Bosch's official fixed-point compensation formula and the official `pico-examples/i2c/bmp280_i2c` pinout. |
 | RP2040 | `workspace/RPI2040/examples/bmp280_spi` | Same BMP280 example over SPI instead of I2C. Grounded against the official `pico-examples/spi/bme280_spi` pinout/protocol (same SPI convention as BMP280). |
+| RP2040 | `workspace/RPI2040/examples/epaper_1in54_spi` | Drives a WeAct Studio 1.54" e-paper module (SSD1681, 200x200) over SPI. Init/update/sleep sequence and BUSY polarity grounded against WeAct's own reference driver for this exact module. |
 
 ## Firmware output
 
