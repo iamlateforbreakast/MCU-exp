@@ -34,13 +34,13 @@
  * file over which LCD bias command it actually sends (0xA3, confirmed by
  * grepping the source directly rather than trusting a first summary).
  *
- * One value deliberately NOT copied from that source: its default contrast
- * is 0, which the library leaves for the caller to tune and would likely
- * look blank/invisible on its own. LCD_CONTRAST below uses a moderate
- * mid-range value instead as a visible starting point - adjust it if the
- * display is too light or too dark. This driver applies no column offset
- * (unlike the SH1106 example in this repo, which needs +2) - the reference
- * driver uses none.
+ * Contrast: confirmed on real hardware via a startup sweep (0x08-0x3F) - 0x08
+ * is what actually renders correctly on this panel, well below both the
+ * reference driver's own default (0, undocumented/untuned) and this file's
+ * first guess (0x24, a generic "moderate" value that turned out too high and
+ * showed as a uniform gray field with no visible shapes). This driver
+ * applies no column offset (unlike the SH1106 example in this repo, which
+ * needs +2) - the reference driver uses none.
  */
 #include <stdio.h>
 #include <stdbool.h>
@@ -60,7 +60,7 @@
 #define LCD_HEIGHT 64
 #define LCD_PAGES (LCD_HEIGHT / 8)
 #define LCD_BUF_SIZE (LCD_WIDTH * LCD_PAGES)
-#define LCD_CONTRAST 0x24 /* 0-0x3F; reference driver's own default (0) is likely too low to see */
+#define LCD_CONTRAST 0x08 /* 0-0x3F; confirmed on real hardware via startup sweep */
 
 static inline void cs_select(void)
 {
@@ -210,35 +210,9 @@ int main(void)
 
     printf("Initializing GMG12864-06D (ST7565R) LCD...\n");
     lcd_init();
-    printf("Init sequence sent. If the screen is still completely blank, that's "
-           "wiring/power, not contrast - check that first.\n");
+    printf("Init sequence sent, entering animation loop.\n");
 
     const int square = 10;
-
-    /* ST7565-family LCDs are notoriously panel-specific about contrast (many
-     * designs even use a trim pot for this reason) - a uniform grayish screen
-     * with no visible shapes usually means the contrast this file guessed
-     * (LCD_CONTRAST) is off for your specific panel, not a wiring problem.
-     * Sweep through a range, holding a static border+square pattern at each
-     * value for a few seconds, so you can see which one actually works
-     * instead of guessing-and-reflashing one value at a time. */
-    static const uint8_t contrast_sweep[] = {0x08, 0x10, 0x18, 0x20, 0x28, 0x30, 0x38, 0x3F};
-    fb_clear(framebuffer);
-    fb_draw_rect(framebuffer, 0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 1, true);
-    fb_fill_rect(framebuffer, (LCD_WIDTH - square) / 2, (LCD_HEIGHT - square) / 2,
-                 (LCD_WIDTH + square) / 2 - 1, (LCD_HEIGHT + square) / 2 - 1, true);
-    lcd_display(framebuffer);
-    for (size_t i = 0; i < sizeof(contrast_sweep); i++) {
-        printf("Contrast sweep: trying 0x%02x - note if a border + center square "
-               "is visible now\n", contrast_sweep[i]);
-        lcd_set_contrast(contrast_sweep[i]);
-        sleep_ms(2500);
-    }
-    printf("Contrast sweep done. Set LCD_CONTRAST to whichever value looked best "
-           "and reflash; continuing with the animation loop at the original "
-           "LCD_CONTRAST (0x%02x) for now.\n", LCD_CONTRAST);
-    lcd_set_contrast(LCD_CONTRAST);
-
     int x = 0;
     int dir = 1;
 

@@ -131,10 +131,12 @@ column addressing come from Adafruit's actual ST7565 driver, not written from me
 Unlike the other SPI examples here, there's no BUSY pin to detect bad wiring - if
 nothing lights up, it's wiring/power, not something the code can diagnose.
 
-**Contrast is a guess:** the reference driver's own default (0) is likely too low to
-see anything; `LCD_CONTRAST` here uses a moderate mid-range value instead as a visible
-starting point - if the display looks all-dark or all-blank once wiring is confirmed
-good, adjust it (valid range 0-0x3F).
+**Contrast** (`LCD_CONTRAST`, valid range 0-0x3F) is confirmed on real hardware at
+`0x08` for this panel - notably low, and well below both the reference driver's own
+default (0, undocumented) and this file's first guess (0x24, which looked like a
+uniform gray field with no visible shapes). ST7565-family LCDs are panel-specific
+about contrast, so a different physical panel may still need retuning - adjust the
+value if the display looks all-dark or all-blank once wiring is confirmed good.
 
 ## Flashing
 
