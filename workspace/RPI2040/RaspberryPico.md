@@ -100,6 +100,31 @@ axis came out mirrored, fixed in `fb_set_pixel` rather than in the SSD1681 comma
 sequence itself. If nothing draws at all, watch for the
 `epd_init: timed out waiting for BUSY` message and check wiring first.
 
+## 1.3" SH1106 OLED example (SPI)
+
+`examples/oled_1in3_sh1106_spi` drives a 1.3" 128x64 monochrome OLED (SH1106
+controller - the near-universal chip for this specific size, distinct from the
+SSD1306 used on the more common 0.96" size) - draws a border, then animates a small
+square scanning back and forth:
+
+```
+cd ~/workspace/examples/oled_1in3_sh1106_spi
+cmake -S . -B build -G Ninja
+cmake --build build
+```
+
+Wire DIN to GPIO7, CLK to GPIO6, CS to GPIO5, DC to GPIO8, RST to GPIO9, plus 3V3/GND.
+The init sequence and the SH1106's +2 column RAM offset come from the u8g2 graphics
+library's actual SH1106 driver, not written from memory. Unlike the other SPI
+examples here, there's no BUSY pin to detect bad wiring - if nothing lights up, it's
+wiring/power, not something the code can diagnose.
+
+**Not verified against this specific module:** the segment-remap/COM-scan-direction
+commands (0xA1/0xC8) - the reference driver relies on chip defaults for a different
+physical module, so if the border/animation appears mirrored or flipped, try toggling
+`0xA1`<->`0xA0` and/or `0xC8`<->`0xC0` in `oled_init()` (see the file's header comment,
+which walks through the same class of orientation issue the e-paper example hit).
+
 ## Flashing
 
 Hold BOOTSEL while plugging in the board (or while resetting it) so it mounts as a USB mass
