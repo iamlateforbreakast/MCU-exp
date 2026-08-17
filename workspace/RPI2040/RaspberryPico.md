@@ -89,8 +89,8 @@ cmake -S . -B build -G Ninja
 cmake --build build
 ```
 
-Wire DIN to GPIO19, CLK to GPIO18, CS to GPIO17, DC to GPIO20, RST to GPIO21, BUSY to
-GPIO22, plus **3.3V only** (5V will damage the panel, per WeAct's own module docs) and
+Wire DIN to GPIO7, CLK to GPIO6, CS to GPIO5, DC to GPIO8, RST to GPIO9, BUSY to
+GPIO10, plus **3.3V only** (5V will damage the panel, per WeAct's own module docs) and
 GND. The init/update/sleep command sequence and BUSY pin polarity come from WeAct's own
 reference driver for this exact module, not a generic e-paper guess.
 

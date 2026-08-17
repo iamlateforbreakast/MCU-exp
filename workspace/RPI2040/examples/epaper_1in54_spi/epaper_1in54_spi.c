@@ -2,10 +2,12 @@
  * monochrome) over SPI on the RP2040. Draws two test patterns a few seconds
  * apart, then puts the panel into deep sleep.
  *
- * Wiring: DIN -> GPIO19 (MOSI), CLK -> GPIO18 (SCK), CS -> GPIO17,
- * DC -> GPIO20, RST -> GPIO21, BUSY -> GPIO22, plus 3V3/GND. This module has
- * no MISO/data-out line, so spi0's RX pin is left unused. VCC is 3.3V ONLY -
- * per WeAct's own module documentation, 5V will damage the panel.
+ * Wiring: DIN -> GPIO7 (MOSI), CLK -> GPIO6 (SCK), CS -> GPIO5,
+ * DC -> GPIO8, RST -> GPIO9, BUSY -> GPIO10, plus 3V3/GND. GPIO4/5/6/7 is
+ * spi0's other alternate-function pin group (RX/CSn/SCK/TX, same repeating
+ * pattern as GPIO16-19); this module has no MISO/data-out line, so GPIO4
+ * (spi0 RX) is left unused/unconfigured. VCC is 3.3V ONLY - per WeAct's own
+ * module documentation, 5V will damage the panel.
  *
  * The command sequence (init/set-RAM-position/power-on/update/deep-sleep) and
  * the BUSY pin's active-high polarity are taken from WeAct Studio's own
@@ -35,12 +37,12 @@
 #include "hardware/spi.h"
 
 #define SPI_PORT spi0
-#define SCK_PIN 18
-#define MOSI_PIN 19
-#define CS_PIN 17
-#define DC_PIN 20
-#define RST_PIN 21
-#define BUSY_PIN 22
+#define SCK_PIN 6
+#define MOSI_PIN 7
+#define CS_PIN 5
+#define DC_PIN 8
+#define RST_PIN 9
+#define BUSY_PIN 10
 #define SPI_BAUDRATE (4 * 1000 * 1000) /* conservative; SSD1681 supports faster */
 
 #define EPD_WIDTH 200
