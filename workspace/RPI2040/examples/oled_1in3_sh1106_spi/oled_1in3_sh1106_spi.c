@@ -10,14 +10,15 @@
  * SH1106's 0xAD) and supports a horizontal/vertical addressing mode SH1106
  * lacks (SH1106 only has page addressing, used here).
  *
- * Wiring: DIN -> GPIO7 (MOSI), CLK -> GPIO6 (SCK), CS -> GPIO5, DC -> GPIO8,
- * RST -> GPIO9, plus 3V3/GND. GPIO4/5/6/7 is spi0's alternate-function pin
- * group (RX/CSn/SCK/TX, same repeating pattern used by the other RP2040 SPI
- * examples in this repo at GPIO0-3/16-19); GPIO4 (spi0 RX) is left unused -
- * this module has no MISO/data-out line. No BUSY pin either, unlike the
- * e-paper example - OLED writes just take effect, so there's nothing to
- * poll and no way to detect bad wiring in software; if nothing lights up,
- * it's wiring/power, not a timeout you can catch here.
+ * Wiring (this module's own labeled pinout): SI -> GPIO3 (MOSI), SCL -> GPIO2
+ * (SCK), CS -> GPIO1, RS -> GPIO0 (DC), RSE -> GPIO4 (RST), VDD -> 3V3, plus
+ * GND. GPIO0-3 is spi0's alternate-function pin group (RX/CSn/SCK/TX, same
+ * repeating pattern used elsewhere in this repo at GPIO4-7/16-19); GPIO0
+ * would normally be spi0 RX, but is used here as a plain GPIO for DC instead
+ * since this module has no MISO/data-out line and doesn't need it. No BUSY
+ * pin either, unlike the e-paper example - OLED writes just take effect, so
+ * there's nothing to poll and no way to detect bad wiring in software; if
+ * nothing lights up, it's wiring/power, not a timeout you can catch here.
  *
  * The init command sequence, the SH1106's +2 column RAM offset (it has 132
  * columns of RAM for a 128-pixel-wide visible area, centered), and the
@@ -45,11 +46,11 @@
 #include "hardware/spi.h"
 
 #define SPI_PORT spi0
-#define SCK_PIN 6
-#define MOSI_PIN 7
-#define CS_PIN 5
-#define DC_PIN 8
-#define RST_PIN 9
+#define SCK_PIN 2
+#define MOSI_PIN 3
+#define CS_PIN 1
+#define DC_PIN 0
+#define RST_PIN 4
 #define SPI_BAUDRATE (8 * 1000 * 1000) /* SH1106 supports faster; conservative default */
 
 #define OLED_WIDTH 128
