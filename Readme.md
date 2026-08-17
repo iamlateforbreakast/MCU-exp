@@ -117,6 +117,7 @@ actually wired the LEDs on your board before building/flashing.
 | RP2040 | `workspace/RPI2040/examples/bmp280_spi` | Same BMP280 example over SPI instead of I2C. Grounded against the official `pico-examples/spi/bme280_spi` pinout/protocol (same SPI convention as BMP280). |
 | RP2040 | `workspace/RPI2040/examples/epaper_1in54_spi` | Drives a WeAct Studio 1.54" e-paper module (SSD1681, 200x200) over SPI. Init/update/sleep sequence and BUSY polarity grounded against WeAct's own reference driver for this exact module. |
 | RP2040 | `workspace/RPI2040/examples/lcd_12864_st7565_spi` | Drives a GMG12864-06D 128x64 monochrome graphic LCD (ST7565R) over SPI. Originally misidentified as an SH1106 OLED from the seller listing; rewritten once the actual chip was identified from the board's part number. Init sequence grounded against Adafruit's actual ST7565 driver. |
+| RP2040 | `workspace/RPI2040/examples/oled_1in3_sh1106_spi` | Drives a genuine 1.3" 128x64 monochrome OLED module (SH1106) over SPI - a separate product from the GMG12864-06D LCD above, despite similar seller listings. Init sequence and SH1106's +2 column offset grounded against the u8g2 graphics library's actual SH1106 driver. |
 
 ## Firmware output
 
