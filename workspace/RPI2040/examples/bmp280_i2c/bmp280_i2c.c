@@ -16,6 +16,7 @@
  * BoschSensortec/BMP280_driver), reimplemented here rather than copied.
  */
 #include <stdio.h>
+#include <stdbool.h>
 #include "pico/stdlib.h"
 #include "hardware/i2c.h"
 
@@ -49,22 +50,31 @@ typedef struct {
     int16_t dig_p9;
 } bmp280_calib_t;
 
-static void reg_write(uint8_t reg, uint8_t data)
+/* All I2C calls check their return value - a NACK (wrong address, no
+ * pull-ups, bad wiring) otherwise fails silently, leaving read buffers
+ * uninitialized. That previously showed up as a clean "0.00"/"0.00" reading
+ * (uninitialized stack locals happening to read back as zero) instead of a
+ * clear error, which is what you actually want to see when debugging wiring. */
+static bool reg_write(uint8_t reg, uint8_t data)
 {
     uint8_t buf[2] = {reg, data};
-    i2c_write_blocking(I2C_PORT, BMP280_I2C_ADDR, buf, 2, false);
+    return i2c_write_blocking(I2C_PORT, BMP280_I2C_ADDR, buf, 2, false) == 2;
 }
 
-static void reg_read(uint8_t reg, uint8_t *buf, size_t len)
+static bool reg_read(uint8_t reg, uint8_t *buf, size_t len)
 {
-    i2c_write_blocking(I2C_PORT, BMP280_I2C_ADDR, &reg, 1, true);
-    i2c_read_blocking(I2C_PORT, BMP280_I2C_ADDR, buf, len, false);
+    if (i2c_write_blocking(I2C_PORT, BMP280_I2C_ADDR, &reg, 1, true) != 1) {
+        return false;
+    }
+    return i2c_read_blocking(I2C_PORT, BMP280_I2C_ADDR, buf, len, false) == (int)len;
 }
 
-static void bmp280_read_calibration(bmp280_calib_t *calib)
+static bool bmp280_read_calibration(bmp280_calib_t *calib)
 {
     uint8_t buf[24];
-    reg_read(REG_CALIB_START, buf, sizeof(buf));
+    if (!reg_read(REG_CALIB_START, buf, sizeof(buf))) {
+        return false;
+    }
 
     calib->dig_t1 = (uint16_t)(buf[0] | (buf[1] << 8));
     calib->dig_t2 = (int16_t)(buf[2] | (buf[3] << 8));
@@ -78,15 +88,19 @@ static void bmp280_read_calibration(bmp280_calib_t *calib)
     calib->dig_p7 = (int16_t)(buf[18] | (buf[19] << 8));
     calib->dig_p8 = (int16_t)(buf[20] | (buf[21] << 8));
     calib->dig_p9 = (int16_t)(buf[22] | (buf[23] << 8));
+    return true;
 }
 
-static void bmp280_read_raw(int32_t *adc_temp, int32_t *adc_pressure)
+static bool bmp280_read_raw(int32_t *adc_temp, int32_t *adc_pressure)
 {
     uint8_t buf[6];
-    reg_read(REG_PRESSURE_MSB, buf, sizeof(buf));
+    if (!reg_read(REG_PRESSURE_MSB, buf, sizeof(buf))) {
+        return false;
+    }
 
     *adc_pressure = ((int32_t)buf[0] << 12) | ((int32_t)buf[1] << 4) | (buf[2] >> 4);
     *adc_temp = ((int32_t)buf[3] << 12) | ((int32_t)buf[4] << 4) | (buf[5] >> 4);
+    return true;
 }
 
 /* Returns temperature in hundredths of a degree C (e.g. 2534 = 25.34 C), and
@@ -132,6 +146,7 @@ static uint32_t bmp280_compensate_pressure(int32_t adc_p, const bmp280_calib_t *
 int main(void)
 {
     stdio_init_all();
+    sleep_ms(2000); /* give a USB CDC terminal time to attach before the first prints */
 
     i2c_init(I2C_PORT, 400 * 1000);
     gpio_set_function(I2C_SDA_PIN, GPIO_FUNC_I2C);
@@ -142,23 +157,38 @@ int main(void)
     reg_write(REG_RESET, SOFT_RESET_CMD);
     sleep_ms(10);
 
+    /* Keep retrying (rather than silently pressing on with garbage data) until the
+     * sensor actually responds - this is the one thing most likely to need fixing
+     * on first wiring, so make it loud and impossible to miss instead of a single
+     * easy-to-miss warning. */
     uint8_t chip_id = 0;
-    reg_read(REG_CHIP_ID, &chip_id, 1);
-    if (chip_id != CHIP_ID_BMP280) {
-        printf("Unexpected chip id 0x%02x (expected 0x%02x) - check wiring/address\n",
-               chip_id, CHIP_ID_BMP280);
+    while (!reg_read(REG_CHIP_ID, &chip_id, 1) || chip_id != CHIP_ID_BMP280) {
+        printf("BMP280 not responding at I2C address 0x%02x (chip id read: 0x%02x, "
+               "expected 0x%02x). Check wiring/pull-ups, and try address 0x77 if this "
+               "board ties SDO high instead of low.\n",
+               BMP280_I2C_ADDR, chip_id, CHIP_ID_BMP280);
+        sleep_ms(1000);
     }
+    printf("BMP280 found (chip id 0x%02x)\n", chip_id);
 
     bmp280_calib_t calib;
-    bmp280_read_calibration(&calib);
+    while (!bmp280_read_calibration(&calib)) {
+        printf("Failed to read calibration data, retrying...\n");
+        sleep_ms(1000);
+    }
 
     /* Normal mode, temperature/pressure oversampling x1, ~1s standby, filter off. */
     reg_write(REG_CTRL_MEAS, 0x27);
     reg_write(REG_CONFIG, 0xA0);
+    sleep_ms(10); /* let the first conversion complete before reading */
 
     while (1) {
         int32_t adc_t, adc_p, t_fine;
-        bmp280_read_raw(&adc_t, &adc_p);
+        if (!bmp280_read_raw(&adc_t, &adc_p)) {
+            printf("I2C read failed\n");
+            sleep_ms(500);
+            continue;
+        }
 
         int32_t temp_c_x100 = bmp280_compensate_temp(adc_t, &calib, &t_fine);
         uint32_t pressure_pa_q24_8 = bmp280_compensate_pressure(adc_p, &calib, t_fine);
