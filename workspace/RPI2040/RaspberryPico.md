@@ -77,6 +77,32 @@ readback is checked in the same loud, retrying loop as the I2C example: watch fo
 `BMP280 not responding over SPI ...` on the serial console if you're not seeing real
 readings, and double-check the four SPI pins plus CS.
 
+## WeAct 1.54" e-paper example (SPI)
+
+`examples/epaper_1in54_spi` drives a WeAct Studio 1.54" e-paper module (SSD1681
+controller, 200x200 monochrome) - draws two test patterns a few seconds apart, then
+puts the panel to sleep:
+
+```
+cd ~/workspace/examples/epaper_1in54_spi
+cmake -S . -B build -G Ninja
+cmake --build build
+```
+
+Wire DIN to GPIO3, CLK to GPIO2, CS to GPIO1, DC to GPIO4, RST to GPIO5, BUSY to
+GPIO6, plus **3.3V only** (5V will damage the panel, per WeAct's own module docs) and
+GND. The init/update/sleep command sequence and BUSY pin polarity come from WeAct's own
+reference driver for this exact module, not a generic e-paper guess.
+
+Two things aren't verified without real hardware: which RAM bit value renders black vs
+white (follows the SSD1681's typical 1=white/0=black convention - flip the
+`PIXEL_WHITE`/`PIXEL_BLACK` macros if your patterns look inverted), and whether the
+Y-axis inversion in `epd_set_pos` (matching WeAct's driver) lands right-side-up on your
+panel's physical orientation. The two test patterns (a bordered corner square, then an
+inverted center square) are deliberately simple so a flipped/mirrored result still
+reads as "it's working" rather than "it's broken." If nothing draws at all, watch for
+the `epd_init: timed out waiting for BUSY` message and check wiring first.
+
 ## Flashing
 
 Hold BOOTSEL while plugging in the board (or while resetting it) so it mounts as a USB mass
