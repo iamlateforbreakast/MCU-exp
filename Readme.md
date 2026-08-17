@@ -109,6 +109,12 @@ vendor SDK's own examples where applicable):
 Every example uses placeholder GPIO pin numbers - adjust them to match how you've
 actually wired the LEDs on your board before building/flashing.
 
+## Other examples
+
+| MCU | Path | Notes |
+| --- | --- | --- |
+| RP2040 | `workspace/RPI2040/examples/bmp280_i2c` | Reads temperature/pressure from a Bosch BMP280 over I2C, printed over USB serial. Grounded against Bosch's official fixed-point compensation formula and the official `pico-examples/i2c/bmp280_i2c` pinout. |
+
 ## Firmware output
 
 Each of the five MCU containers mounts a second host directory, `firmware/<MCU>`, to

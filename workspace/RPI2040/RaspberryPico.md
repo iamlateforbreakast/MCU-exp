@@ -33,6 +33,24 @@ cmake --build build
 Adjust the `LED_GPIO_*` pin numbers in `gpio_led_blink.c` to match your wiring (GPIO 25
 is the onboard LED on a stock Pico/Pico W).
 
+## BMP280 sensor example
+
+`examples/bmp280_i2c` reads temperature and pressure from a Bosch BMP280 over I2C
+(`hardware/i2c.h`) and prints them over USB serial every 500ms:
+
+```
+cd ~/workspace/examples/bmp280_i2c
+cmake -S . -B build -G Ninja
+cmake --build build
+```
+
+Wire SDA to GPIO4, SCL to GPIO5, plus 3V3/GND (matching the official
+`pico-examples/i2c/bmp280_i2c` pinout). The default I2C address (`BMP280_I2C_ADDR` in
+`bmp280_i2c.c`) is `0x76`; change it to `0x77` if your breakout board ties the sensor's
+SDO pin high instead of low. After flashing, connect at any baud rate (e.g.
+`minicom -D /dev/ttyACM0`) to see the readings - USB CDC ignores the actual baud
+setting.
+
 ## Flashing
 
 Hold BOOTSEL while plugging in the board (or while resetting it) so it mounts as a USB mass
@@ -45,10 +63,11 @@ cp build/hello_world.uf2 /media/$USER/RPI-RP2/
 ## Firmware output
 
 `compose.yaml` also mounts a separate `firmware/RPI2040` host directory to `~/firmware`
-inside the container - copy the built `.uf2` there so it's easy to find on the host:
+inside the container - copy a built `.uf2` there so it's easy to find on the host, e.g.:
 
 ```
 cp build/gpio_led_blink.uf2 ~/firmware/
+cp build/bmp280_i2c.uf2 ~/firmware/
 ```
 
 # Install SDK (manual, outside the container)
