@@ -58,6 +58,25 @@ silently continuing with uninitialized data, so reconnect your terminal and chec
 that message. Most commonly this means the address is actually `0x77` (try changing
 `BMP280_I2C_ADDR`), or SDA/SCL need external ~4.7k pull-ups.
 
+## BMP280 sensor example (SPI)
+
+`examples/bmp280_spi` is the SPI equivalent of `bmp280_i2c` - same sensor, same
+compensation math, different transport (`hardware/spi.h`):
+
+```
+cd ~/workspace/examples/bmp280_spi
+cmake -S . -B build -G Ninja
+cmake --build build
+```
+
+Wire SCK to GPIO18, MOSI/SDI to GPIO19, MISO/SDO to GPIO16, CS to GPIO17, plus 3V3/GND
+(matching the official `pico-examples/spi/bme280_spi` pinout - BME280 uses the same SPI
+protocol and register map as BMP280). Unlike I2C, SPI has no ACK/NACK, so bad wiring
+won't cause a clean failure - it'll just shift garbage bits - which is why the chip-id
+readback is checked in the same loud, retrying loop as the I2C example: watch for
+`BMP280 not responding over SPI ...` on the serial console if you're not seeing real
+readings, and double-check the four SPI pins plus CS.
+
 ## Flashing
 
 Hold BOOTSEL while plugging in the board (or while resetting it) so it mounts as a USB mass
