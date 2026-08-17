@@ -138,6 +138,11 @@ uniform gray field with no visible shapes). ST7565-family LCDs are panel-specifi
 about contrast, so a different physical panel may still need retuning - adjust the
 value if the display looks all-dark or all-blank once wiring is confirmed good.
 
+**Column offset** (`LCD_COL_OFFSET`) is confirmed on real hardware at `4` - without
+it, the border rendered 4 pixels off from the true left edge. The reference driver
+applies no offset at all, so this is panel-specific, same class of quirk as the
+SH1106 OLED example's +2 (a different chip/panel, different value).
+
 ## Flashing
 
 Hold BOOTSEL while plugging in the board (or while resetting it) so it mounts as a USB mass
