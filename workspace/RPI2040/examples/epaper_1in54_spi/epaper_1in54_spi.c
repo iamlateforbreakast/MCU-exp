@@ -17,18 +17,12 @@
  * controllers have no readback, so a wrong init sequence just produces a
  * blank/garbled screen with no error, and is very hard to debug blind.
  *
- * One thing NOT confirmed from that source: which RAM bit value (0 or 1)
- * renders black vs white. This follows the SSD1681's typical convention
- * (1 = white, 0 = black) - if your test patterns render inverted, flip the
- * BLACK/WHITE macros below.
- *
- * Also unconfirmed without real hardware: whether WeAct's Y-address
- * inversion (used here to match their driver) results in the pattern drawn
- * appearing right-side up on your specific panel orientation. The two test
- * patterns below (a border + corner square, then an inverted center square)
- * are deliberately simple shapes so a flipped/mirrored orientation is still
- * obviously "it's working, the picture's just flipped" rather than looking
- * broken.
+ * Confirmed on real hardware: the RAM bit polarity assumption below (1 =
+ * white, 0 = black) is correct as-is. WeAct's Y-address inversion (kept
+ * as-is in epd_set_pos) also lands top-as-top correctly, but the X axis
+ * came out mirrored - fixed in fb_set_pixel rather than in epd_set_pos, to
+ * keep the actual SSD1681 command sequence exactly as verified from WeAct's
+ * source.
  */
 #include <stdio.h>
 #include <stdbool.h>
@@ -203,8 +197,15 @@ static void fb_set_pixel(uint8_t *fb, int x, int y, bool black)
     if (x < 0 || x >= EPD_WIDTH || y < 0 || y >= EPD_HEIGHT) {
         return;
     }
-    int byte_index = y * EPD_WIDTH_BYTES + (x / 8);
-    uint8_t mask = 0x80 >> (x % 8);
+    /* Confirmed on real hardware: the Y-axis inversion inherited from WeAct's
+     * driver (in epd_set_pos) lands top-as-top correctly, but the X axis
+     * comes out mirrored - a shape drawn at low x appeared on the physical
+     * right instead of the left. Mirroring here, at the framebuffer level,
+     * rather than touching epd_set_pos/the verified SSD1681 command sequence
+     * itself. */
+    int px = (EPD_WIDTH - 1) - x;
+    int byte_index = y * EPD_WIDTH_BYTES + (px / 8);
+    uint8_t mask = 0x80 >> (px % 8);
     if (black) {
         fb[byte_index] &= (uint8_t)~mask;
     } else {

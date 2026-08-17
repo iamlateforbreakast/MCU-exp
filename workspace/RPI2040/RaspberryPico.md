@@ -94,14 +94,11 @@ GPIO6, plus **3.3V only** (5V will damage the panel, per WeAct's own module docs
 GND. The init/update/sleep command sequence and BUSY pin polarity come from WeAct's own
 reference driver for this exact module, not a generic e-paper guess.
 
-Two things aren't verified without real hardware: which RAM bit value renders black vs
-white (follows the SSD1681's typical 1=white/0=black convention - flip the
-`PIXEL_WHITE`/`PIXEL_BLACK` macros if your patterns look inverted), and whether the
-Y-axis inversion in `epd_set_pos` (matching WeAct's driver) lands right-side-up on your
-panel's physical orientation. The two test patterns (a bordered corner square, then an
-inverted center square) are deliberately simple so a flipped/mirrored result still
-reads as "it's working" rather than "it's broken." If nothing draws at all, watch for
-the `epd_init: timed out waiting for BUSY` message and check wiring first.
+Confirmed on real hardware: the RAM bit polarity (1=white/0=black) is correct as-is,
+and WeAct's Y-axis inversion in `epd_set_pos` lands top-as-top correctly - but the X
+axis came out mirrored, fixed in `fb_set_pixel` rather than in the SSD1681 command
+sequence itself. If nothing draws at all, watch for the
+`epd_init: timed out waiting for BUSY` message and check wiring first.
 
 ## Flashing
 
