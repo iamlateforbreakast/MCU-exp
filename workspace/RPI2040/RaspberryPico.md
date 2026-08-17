@@ -113,8 +113,9 @@ cmake -S . -B build -G Ninja
 cmake --build build
 ```
 
-Wire DIN to GPIO7, CLK to GPIO6, CS to GPIO5, DC to GPIO8, RST to GPIO9, plus 3V3/GND.
-The init sequence and the SH1106's +2 column RAM offset come from the u8g2 graphics
+Wire (using this module's own pin labels) SI to GPIO3, SCL to GPIO2, CS to GPIO1, RS
+to GPIO0, RSE to GPIO4, VDD to 3V3, plus GND. The init sequence and the SH1106's +2
+column RAM offset come from the u8g2 graphics
 library's actual SH1106 driver, not written from memory. Unlike the other SPI
 examples here, there's no BUSY pin to detect bad wiring - if nothing lights up, it's
 wiring/power, not something the code can diagnose.
