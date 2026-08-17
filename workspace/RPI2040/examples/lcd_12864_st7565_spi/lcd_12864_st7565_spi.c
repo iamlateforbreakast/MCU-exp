@@ -38,9 +38,12 @@
  * is what actually renders correctly on this panel, well below both the
  * reference driver's own default (0, undocumented/untuned) and this file's
  * first guess (0x24, a generic "moderate" value that turned out too high and
- * showed as a uniform gray field with no visible shapes). This driver
- * applies no column offset (unlike the SH1106 example in this repo, which
- * needs +2) - the reference driver uses none.
+ * showed as a uniform gray field with no visible shapes).
+ *
+ * Column offset: confirmed on real hardware to need +4 (LCD_COL_OFFSET) -
+ * the reference driver applies none, but this panel's border rendered 4
+ * pixels off from the true left edge without it. Same class of quirk as the
+ * SH1106 example in this repo (which needs +2, a different value/chip).
  */
 #include <stdio.h>
 #include <stdbool.h>
@@ -61,6 +64,10 @@
 #define LCD_PAGES (LCD_HEIGHT / 8)
 #define LCD_BUF_SIZE (LCD_WIDTH * LCD_PAGES)
 #define LCD_CONTRAST 0x08 /* 0-0x3F; confirmed on real hardware via startup sweep */
+/* Confirmed on real hardware: the border rendered 4 pixels off from the true
+ * left edge - this panel's RAM has columns before the visible glass starts,
+ * same class of quirk as the SH1106 example's +2 (different value here). */
+#define LCD_COL_OFFSET 4
 
 static inline void cs_select(void)
 {
@@ -127,9 +134,10 @@ static void lcd_init(void)
 
 static void lcd_set_pos(uint8_t page, uint8_t col)
 {
+    uint8_t x = col + LCD_COL_OFFSET;
     lcd_write_cmd(0xB0 | (page & 0x0F)); /* set page address */
-    lcd_write_cmd(0x10 | (col >> 4)); /* set higher column address nibble */
-    lcd_write_cmd(0x00 | (col & 0x0F)); /* set lower column address nibble */
+    lcd_write_cmd(0x10 | (x >> 4)); /* set higher column address nibble */
+    lcd_write_cmd(0x00 | (x & 0x0F)); /* set lower column address nibble */
 }
 
 /* Framebuffer layout: LCD_PAGES rows of LCD_WIDTH bytes; each byte packs 8
