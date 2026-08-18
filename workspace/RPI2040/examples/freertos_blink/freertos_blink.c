@@ -16,6 +16,17 @@
  * cross-checked rather than written from memory - trimmed down to a single
  * core / dynamic-allocation-only build, since this repo's other examples
  * are all single-purpose rather than multi-variant.
+ *
+ * Two builds share this one source file (see CMakeLists.txt):
+ * freertos_blink (single core, the default) and freertos_blink_dual_core
+ * (configNUMBER_OF_CORES=2, set via a compiler define rather than editing
+ * FreeRTOSConfig.h, the same technique the official example uses for its
+ * own one-core/two-core variants). On the dual-core build, the RP2040 SMP
+ * port's scheduler brings up core 1 itself inside vTaskStartScheduler() -
+ * unlike raw pico_multicore usage, main() below doesn't need to call
+ * multicore_launch_core1() itself. Each task prints which core it landed
+ * on at startup (portGET_CORE_ID()) so you can see the scheduler actually
+ * spread the four tasks across both cores instead of taking it on faith.
  */
 #include <stdio.h>
 #include "pico/stdlib.h"
@@ -52,6 +63,9 @@ static void blink_task(void *params)
     bool on = false;
 
     init_led(gpio);
+#if configNUMBER_OF_CORES > 1
+    printf("%s running on core %d\n", pcTaskGetName(NULL), portGET_CORE_ID());
+#endif
     while (true) {
         on = !on;
         gpio_put(gpio, on);
@@ -66,6 +80,9 @@ static void producer_task(void *params)
     (void)params;
     uint32_t count = 0;
 
+#if configNUMBER_OF_CORES > 1
+    printf("%s running on core %d\n", pcTaskGetName(NULL), portGET_CORE_ID());
+#endif
     while (true) {
         vTaskDelay(pdMS_TO_TICKS(PRODUCER_PERIOD_MS));
         count++;
@@ -82,6 +99,9 @@ static void consumer_task(void *params)
     (void)params;
     uint32_t received;
 
+#if configNUMBER_OF_CORES > 1
+    printf("%s running on core %d\n", pcTaskGetName(NULL), portGET_CORE_ID());
+#endif
     while (true) {
         if (xQueueReceive(tick_queue, &received, portMAX_DELAY) == pdTRUE) {
             printf("consumer_task: producer tick #%u\n", (unsigned)received);

@@ -60,9 +60,18 @@
 #define configTIMER_QUEUE_LENGTH                10
 #define configTIMER_TASK_STACK_DEPTH            1024
 
-/* Single core - the RP2040 port also supports configNUMBER_OF_CORES=2 (SMP),
- * kept off here to match this repo's other single-purpose examples. */
+/* Single core by default. The RP2040 SMP port also supports 2 cores - the
+ * freertos_blink_dual_core CMake target overrides this to 2 via a compiler
+ * define (see CMakeLists.txt) rather than editing this file, so both builds
+ * share one FreeRTOSConfig.h. */
+#ifndef configNUMBER_OF_CORES
 #define configNUMBER_OF_CORES                   1
+#endif
+#if configNUMBER_OF_CORES > 1
+/* FreeRTOS.h hard-errors if this isn't defined once configNUMBER_OF_CORES
+ * exceeds 1 - this example has no idle-time work to do, so off is correct. */
+#define configUSE_PASSIVE_IDLE_HOOK              0
+#endif
 
 /* RP2040 specific: lets FreeRTOS mutexes/queues interoperate with the Pico
  * SDK's own sync/time primitives (hardware/sync.h, pico/time.h). */

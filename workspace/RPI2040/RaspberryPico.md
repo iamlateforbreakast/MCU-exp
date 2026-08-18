@@ -129,6 +129,16 @@ single-purpose rather than multi-variant.
 Adjust `LED_GPIO_FAST`/`LED_GPIO_SLOW` in `freertos_blink.c` to match your
 wiring (GPIO 25 is the onboard LED on a stock Pico/Pico W).
 
+**Using both cores:** `cmake --build build` also produces
+`freertos_blink_dual_core` - the same source, built with
+`configNUMBER_OF_CORES=2` (a compile definition set in `CMakeLists.txt`, not
+a separate `FreeRTOSConfig.h`) so the RP2040 SMP port's scheduler spreads
+the four tasks across both cores instead of time-slicing them on one. The
+RP2040 SMP port brings up core 1 itself inside `vTaskStartScheduler()` - no
+`pico_multicore` calls needed in `main()`. Each task prints which core it
+started on (`portGET_CORE_ID()`) so you can confirm this on the serial
+console rather than take it on faith.
+
 ## 1.3" SH1106 OLED example (SPI)
 
 `examples/oled_1in3_sh1106_spi` drives a genuine 1.3" 128x64 monochrome OLED

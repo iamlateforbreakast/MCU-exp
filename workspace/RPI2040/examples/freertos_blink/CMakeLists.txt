@@ -22,3 +22,14 @@ pico_enable_stdio_uart(freertos_blink 0)
 # FreeRTOS-Kernel-Heap4: dynamic (malloc-style) allocation - this example
 # doesn't need the static-allocation variant the official example also shows.
 target_link_libraries(freertos_blink pico_stdlib FreeRTOS-Kernel-Heap4)
+
+# Same source, built with the RP2040 SMP port's scheduler spread across both
+# cores instead of one - see the file header and FreeRTOSConfig.h for what
+# changes (just configNUMBER_OF_CORES, via this compile definition).
+add_executable(freertos_blink_dual_core freertos_blink.c)
+target_include_directories(freertos_blink_dual_core PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+target_compile_definitions(freertos_blink_dual_core PRIVATE configNUMBER_OF_CORES=2)
+pico_add_extra_outputs(freertos_blink_dual_core)
+pico_enable_stdio_usb(freertos_blink_dual_core 1)
+pico_enable_stdio_uart(freertos_blink_dual_core 0)
+target_link_libraries(freertos_blink_dual_core pico_stdlib FreeRTOS-Kernel-Heap4)
