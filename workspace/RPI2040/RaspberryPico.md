@@ -100,6 +100,35 @@ axis came out mirrored, fixed in `fb_set_pixel` rather than in the SSD1681 comma
 sequence itself. If nothing draws at all, watch for the
 `epd_init: timed out waiting for BUSY` message and check wiring first.
 
+## FreeRTOS example
+
+`examples/freertos_blink` runs FreeRTOS on the RP2040 (single core, dynamic
+allocation): two independent tasks blink two LEDs at different rates, and a
+producer/consumer task pair passes an incrementing tick count through a
+queue, printed over USB serial:
+
+```
+cd ~/workspace/examples/freertos_blink
+cmake -S . -B build -G Ninja
+cmake --build build
+```
+
+Contrast with `examples/gpio_led_blink`: that example sequences LEDs from a
+single bare-metal loop using `sleep_ms()`; here each LED is owned by its own
+FreeRTOS task with its own period and priority, using `vTaskDelay()` so the
+scheduler can run other tasks while one is waiting.
+
+The `rp2040-dev` container clones the FreeRTOS kernel (including its RP2040
+SMP port) to `$FREERTOS_KERNEL_PATH` at build time (see `Dockerfile.rp2040`)
+- no extra setup needed inside the container. `FreeRTOSConfig.h` and the
+task/queue setup in `freertos_blink.c` are grounded against the official
+`pico-examples/freertos/hello_freertos` example, trimmed down to a single
+core and dynamic-allocation-only build since this repo's other examples are
+single-purpose rather than multi-variant.
+
+Adjust `LED_GPIO_FAST`/`LED_GPIO_SLOW` in `freertos_blink.c` to match your
+wiring (GPIO 25 is the onboard LED on a stock Pico/Pico W).
+
 ## 1.3" SH1106 OLED example (SPI)
 
 `examples/oled_1in3_sh1106_spi` drives a genuine 1.3" 128x64 monochrome OLED
