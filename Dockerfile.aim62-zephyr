@@ -74,9 +74,9 @@ RUN python3 -m venv ${ZEPHYR_VENV} && \
     ${ZEPHYR_VENV}/bin/pip install --upgrade pip && \
     ${ZEPHYR_VENV}/bin/pip install west
 
-# Pinned to v4.2.0 - the exact release the upstream ai_m62_12f_kit board doc's own
-# sample output was captured against (see workspace/AI-M62-Zephyr/AI-M62-Zephyr.md).
-RUN ${ZEPHYR_VENV}/bin/west init -m https://github.com/zephyrproject-rtos/zephyr --mr v4.2.0 ${ZEPHYR_PROJECT} && \
+# Pinned to v4.4.0 - the first tagged release confirmed (by diffing the upstream repo)
+# to contain the ai_m62_12f_kit board directory; it doesn't exist yet at v4.3.0.
+RUN ${ZEPHYR_VENV}/bin/west init -m https://github.com/zephyrproject-rtos/zephyr --mr v4.4.0 ${ZEPHYR_PROJECT} && \
     cd ${ZEPHYR_PROJECT} && \
     ${ZEPHYR_VENV}/bin/west update && \
     ${ZEPHYR_VENV}/bin/west zephyr-export && \

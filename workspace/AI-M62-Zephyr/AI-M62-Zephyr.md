@@ -1,7 +1,8 @@
 # AI-Thinker M62 Zephyr development
 
 The `aim62-zephyr-dev` container (see `Dockerfile.aim62-zephyr` / `compose.yaml`) provides
-Zephyr RTOS (pinned to `v4.2.0`) and the `riscv64-zephyr-elf` Zephyr SDK toolchain, targeting
+Zephyr RTOS (pinned to `v4.4.0`, the first tagged release containing `ai_m62_12f_kit` board
+support) and the `riscv64-zephyr-elf` Zephyr SDK toolchain, targeting
 the Zephyr board `ai_m62_12f_kit` - the Ai-Thinker M62-12F Kit (BL616, RISC-V). This is a
 separate container from `aim62-dev` (`Dockerfile.aim62`), which targets the same MCU family
 through the vendor's own Ai-M6X SDK instead of Zephyr.
