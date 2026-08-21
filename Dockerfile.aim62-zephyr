@@ -1,0 +1,98 @@
+# Dockerfile to build a container image for Zephyr RTOS development targeting the
+# AI-Thinker M62-12F (BL616, RISC-V) - Zephyr board "ai_m62_12f_kit".
+# Distinct from Dockerfile.aim62, which targets the same MCU family via the vendor's
+# own Ai-M6X SDK instead of Zephyr.
+# Intended for use with podman (see compose.yaml, which relies on userns_mode: keep-id
+# to map the host user's UID/GID into the container).
+FROM ubuntu:24.04
+
+LABEL com.github.containers.toolbox="true" \
+      com.github.debarshiray.toolbox="true"
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && \
+    apt-get -y upgrade && \
+    apt-get install -y \
+        build-essential \
+        ccache \
+        cmake \
+        device-tree-compiler \
+        file \
+        gdb-multiarch \
+        git \
+        gperf \
+        libusb-1.0-0 \
+        libusb-1.0-0-dev \
+        ninja-build \
+        python3 \
+        python3-dev \
+        python3-pip \
+        python3-setuptools \
+        python3-venv \
+        python3-wheel \
+        sudo \
+        udev \
+        unzip \
+        wget \
+        xz-utils && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Username and UID/GID are configurable so the container's user can match the
+# host user podman maps in via userns_mode: keep-id.
+ARG USERNAME=builder
+ARG USER_UID=1000
+ARG USER_GID=${USER_UID}
+
+# ubuntu:24.04 ships a stock "ubuntu" user/group at 1000:1000; remove it so the
+# configurable UID/GID below don't collide with it.
+# Added to sudo and dialout groups (dialout for serial/USB flashing access)
+RUN userdel -r ubuntu && \
+    groupadd -g ${USER_GID} ${USERNAME} && \
+    useradd -u ${USER_UID} -g ${USER_GID} -c "AI-M62 Zephyr Developer" \
+            -G sudo,dialout -d "/home/${USERNAME}" --create-home "${USERNAME}" && \
+    export PS1="\[\033[01;34m\](podman) \[\033[00m\]\u@\h:\w\$ " >> /home/${USERNAME}/.bashrc
+
+# Allow sudo without password
+RUN echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+RUN touch /etc/localtime
+RUN echo VARIANT_ID=container >> /etc/os-release
+
+USER ${USERNAME}
+WORKDIR /home/${USERNAME}
+
+ENV ZEPHYR_VENV=/home/${USERNAME}/.venv-zephyr
+ENV ZEPHYR_PROJECT=/home/${USERNAME}/zephyrproject
+ENV ZEPHYR_BASE=${ZEPHYR_PROJECT}/zephyr
+ENV ZEPHYR_TOOLCHAIN_VARIANT=zephyr
+
+# west/Zephyr's own tooling live in their own venv - Ubuntu 24.04's system python
+# refuses "pip install" outside one (PEP 668).
+RUN python3 -m venv ${ZEPHYR_VENV} && \
+    ${ZEPHYR_VENV}/bin/pip install --upgrade pip && \
+    ${ZEPHYR_VENV}/bin/pip install west
+
+# Pinned to v4.4.0 - the first tagged release confirmed (by diffing the upstream repo)
+# to contain the ai_m62_12f_kit board directory; it doesn't exist yet at v4.3.0.
+RUN ${ZEPHYR_VENV}/bin/west init -m https://github.com/zephyrproject-rtos/zephyr --mr v4.4.0 ${ZEPHYR_PROJECT} && \
+    cd ${ZEPHYR_PROJECT} && \
+    ${ZEPHYR_VENV}/bin/west update && \
+    ${ZEPHYR_VENV}/bin/west zephyr-export && \
+    ${ZEPHYR_VENV}/bin/pip install -r ${ZEPHYR_BASE}/scripts/requirements.txt && \
+    ${ZEPHYR_VENV}/bin/pip install bflb-mcu-tool
+
+# Zephyr SDK, scoped to just the riscv64-zephyr-elf toolchain the BL616 (M62) needs
+# instead of the full multi-arch bundle. "-c" registers it with CMake's package
+# registry so `west build` finds it with no further configuration.
+RUN cd ${ZEPHYR_PROJECT} && \
+    SDK_VERSION=$(cat ${ZEPHYR_BASE}/SDK_VERSION) && \
+    wget -q "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${SDK_VERSION}/zephyr-sdk-${SDK_VERSION}_linux-x86_64_minimal.tar.xz" && \
+    tar xf "zephyr-sdk-${SDK_VERSION}_linux-x86_64_minimal.tar.xz" -C /home/${USERNAME} && \
+    rm "zephyr-sdk-${SDK_VERSION}_linux-x86_64_minimal.tar.xz" && \
+    /home/${USERNAME}/zephyr-sdk-${SDK_VERSION}/setup.sh -t riscv64-zephyr-elf -h -c
+
+RUN echo "source ${ZEPHYR_VENV}/bin/activate" >> /home/${USERNAME}/.bashrc
+
+CMD ["/bin/bash"]

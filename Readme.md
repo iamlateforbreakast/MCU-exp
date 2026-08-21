@@ -11,6 +11,8 @@ Docker files are provided:
 - One with the Realtek AmebaD SDK toolchain to develop for the RTL8720DN (BW16)
 - One based on the vendor image to develop for the Luckfox Pico (RV1103/RV1106)
 - One with the Ai-M6X SDK toolchain to develop for the AI Thinker M62 (M62-M2-I-Kit)
+- One with Zephyr RTOS and its SDK toolchain to develop for the AI Thinker M62-12F
+  (BL616), using Zephyr's own `ai_m62_12f_kit` board support
 
 ## Building RTEMS 7
 
@@ -92,6 +94,20 @@ cd $AIM62_SDK_PATH/examples/helloworld
 
 See `workspace/AI-MF62-AiThinker/AI-MF62-AiThinker.md` for details.
 
+## AI Thinker M62 Zephyr development
+
+```
+podman compose up -d aim62-zephyr-dev
+podman exec -it aim62-zephyr-dev /bin/bash
+cd ~/zephyrproject
+west build -b ai_m62_12f_kit -d ~/workspace/examples/gpio_led_blink/build ~/workspace/examples/gpio_led_blink
+west flash -d ~/workspace/examples/gpio_led_blink/build
+```
+
+See `workspace/AI-M62-Zephyr/AI-M62-Zephyr.md` for details, including flashing over
+USB-serial with `bflb_mcu_tool`. Separate from the `aim62-dev` container above, which
+targets the same MCU family through the vendor's own Ai-M6X SDK instead of Zephyr.
+
 ## GPIO LED examples
 
 Each MCU's workspace directory has an `examples/gpio_led_blink` project that drives a
@@ -105,6 +121,7 @@ vendor SDK's own examples where applicable):
 | RTL8720DN | `workspace/RTL8720DN/examples/gpio_led_blink` | Ameba raw GPIO (`GPIO_Init`/`GPIO_WriteBit`) |
 | Luckfox Pico | `workspace/Luckfoxpico/examples/gpio_led_blink` | sysfs (on-device shell script) |
 | AI-M62 | `workspace/AI-MF62-AiThinker/examples/gpio_led_blink` | Bouffalo `bflb_gpio` |
+| AI-M62 (Zephyr) | `workspace/AI-M62-Zephyr/examples/gpio_led_blink` | Zephyr `gpio_dt_spec`, driving the M62-12F Kit's 5 onboard LEDs via the board's own devicetree |
 
 Every example uses placeholder GPIO pin numbers - adjust them to match how you've
 actually wired the LEDs on your board before building/flashing.
@@ -122,7 +139,7 @@ actually wired the LEDs on your board before building/flashing.
 
 ## Firmware output
 
-Each of the five MCU containers mounts a second host directory, `firmware/<MCU>`, to
+Each of the MCU containers mounts a second host directory, `firmware/<MCU>`, to
 `~/firmware` inside the container (distinct from the `workspace/<MCU>` source mount).
 Copy compiled binaries there after building so they land somewhere predictable on the
 host for flashing, instead of digging through build directories inside the container -

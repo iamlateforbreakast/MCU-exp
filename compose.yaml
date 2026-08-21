@@ -132,3 +132,24 @@ services:
     #   - "/dev/ttyUSB0:/dev/ttyUSB0"
     stdin_open: true
     tty: true
+
+  aim62-zephyr-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.aim62-zephyr
+      args:
+        USERNAME: ${USERNAME:-builder}
+        USER_UID: ${USER_UID:-1000}
+        USER_GID: ${USER_GID:-1000}
+    container_name: aim62-zephyr-dev
+    userns_mode: "keep-id"
+    user: "${USERNAME:-builder}"
+    volumes:
+      - ${AIM62ZEPHYR_WORKSPACE_DIR:-./workspace/AI-M62-Zephyr}:/home/${USERNAME:-builder}/workspace:z,U
+      - ${AIM62ZEPHYR_FIRMWARE_DIR:-./firmware/AI-M62-Zephyr}:/home/${USERNAME:-builder}/firmware:z,U
+    # Uncomment and adjust to the USB-serial adapter exposed by the M62-12F Kit on
+    # the host in order to flash/monitor it via bflb_mcu_tool.
+    # devices:
+    #   - "/dev/ttyUSB0:/dev/ttyUSB0"
+    stdin_open: true
+    tty: true
