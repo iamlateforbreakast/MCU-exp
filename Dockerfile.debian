@@ -22,6 +22,7 @@ RUN apt-get update && \
         qemu-system-misc \
         texinfo \
         unzip \
+        vim \
         sudo \
         libcap2-bin && \
      apt-get clean && \
