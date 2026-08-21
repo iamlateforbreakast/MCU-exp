@@ -3,17 +3,25 @@
 The `esp32c3-rtems-dev` container (see `Dockerfile.esp32c3-rtems` / `compose.yaml`)
 builds RTEMS for the ESP32-C3 using RTEMS's `esp32c3db` BSP (`riscv/esp32c3db`).
 
-**Status: draft/unverified.** `esp32c3db` was merged into RTEMS's git `main` branch
-via
+**Status: draft, partially build-tested.** `esp32c3db` was merged into RTEMS's git
+`main` branch via
 [merge request !1160](https://gitlab.rtems.org/rtems/rtos/rtems/-/merge_requests/1160)
 and is documented under RTEMS's development docs (targeting the upcoming RTEMS 7);
 it has not shipped in a tagged RTEMS release. `Dockerfile.esp32c3-rtems` therefore
 builds the RSB toolchain and RTEMS kernel from source instead of a released
-`rtems-source-builder` bset, and several of its steps (the RSB bset name, the
-OpenOCD build flags) are best-effort guesses that haven't actually been built in
-this environment - cross-check each step against the
+`rtems-source-builder` bset.
+
+A real `docker build` got through package install and user setup, then into the
+actual `sb-set-builder 7/rtems-riscv` toolchain step - confirming the bset name and
+RSB's mirror-fallback logic are correct - but every upstream source host it needs
+(`dl.rtems.org`, `www.kernel.org`, `ftpmirror.gnu.org`, `sourceware.org`,
+`gcc.gnu.org`, `gitlab.rtems.org`) was unreachable from that sandbox's egress
+policy, which only permits GitHub/PyPI-style hosts. So the toolchain build itself
+has never completed - it needs to run somewhere with normal internet access (a
+workstation or CI runner). Cross-check each step against the
 [riscv BSPs page](https://docs.rtems.org/docs/main/user/bsps/bsps-riscv.html)
-before relying on it, and expect to iterate on the Dockerfile.
+before relying on it, and expect to iterate on the Dockerfile once it can actually
+build end-to-end.
 
 This is distinct from `workspace/ESP32-C3/ESP32-C3.md`, which targets the same chip
 via Espressif's ESP-IDF/FreeRTOS stack instead of RTEMS, and from the `rtems-dev`

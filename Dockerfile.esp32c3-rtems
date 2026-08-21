@@ -7,20 +7,31 @@
 # rtems-dev service), which builds RTEMS for SPARC/leon3 and generic RISC-V for use
 # under QEMU/Renode rather than for real ESP32-C3 hardware.
 #
-# CAUTION - unverified/draft: esp32c3db is not in a tagged RTEMS release as of this
-# writing (only documented under RTEMS's git `main` branch, i.e. the upcoming RTEMS
-# 7). That means:
-#   - the RTEMS kernel is built from `main` below, not a release tarball like
-#     build_rtems.sh uses for RTEMS 6.
-#   - the RSB toolchain bset name ("7/rtems-riscv") is a guess based on RSB's
-#     versioning convention for other architectures - confirm it exists (or find the
-#     right bset) before trusting this build.
-#   - the OpenOCD build/configure flags are generic placeholders; the RTEMS docs call
-#     for a "development version of OpenOCD" without pinning a commit or exact flags.
-# None of this has been built/tested (this environment's egress is blocked to
-# rtems.org/gitlab.rtems.org). Treat this Dockerfile as a starting point, cross-check
-# each RUN step against https://docs.rtems.org/docs/main/user/bsps/bsps-riscv.html,
-# and expect to iterate.
+# CAUTION - draft, partially build-tested: esp32c3db is not in a tagged RTEMS
+# release as of this writing - it only exists on RTEMS's git `main` branch (the
+# upcoming RTEMS 7), confirmed present at
+# spec/build/bsps/riscv/esp32/bspesp32c3db.yml. That means the RTEMS kernel below is
+# built from `main`, not a release tarball like build_rtems.sh uses for RTEMS 6. The
+# RSB bset used ("7/rtems-riscv") and the OpenOCD ESP32-C3 target/board configs
+# (tcl/target/esp32c3.cfg, tcl/board/esp32c3-builtin.cfg) were both confirmed to
+# exist upstream, and github.com/RTEMS/rtems(-source-builder) are used in place of
+# gitlab.rtems.org, which some egress policies (including the one this Dockerfile
+# was drafted under) block outright.
+#
+# This image was test-built through package install and user setup successfully,
+# then into the real `sb-set-builder --prefix=... 7/rtems-riscv` toolchain step,
+# which confirmed the bset resolves and RSB's multi-mirror fallback logic runs for
+# real - but every source host it tried (dl.rtems.org, then www.kernel.org for its
+# first dependency, device-tree-compiler) was blocked by that environment's egress
+# policy, as were ftpmirror.gnu.org, ftp.gnu.org, gcc.gnu.org, and sourceware.org
+# when checked directly - the hosts RSB needs next for gmp/mpfr/mpc/binutils/gcc.
+# Only github.com- and pypi.org-style hosts were reachable there. Building this
+# image for real therefore requires an environment with unrestricted (or at least
+# GNU-mirror/kernel.org/sourceware.org-permitting) internet access - a developer
+# workstation or CI runner, not a locked-down sandbox. Once run somewhere with that
+# access, cross-check against
+# https://docs.rtems.org/docs/main/user/bsps/bsps-riscv.html and expect to iterate
+# further (this has still never completed end-to-end).
 #
 # Intended for use with podman (see compose.yaml, which relies on userns_mode: keep-id
 # to map the host user's UID/GID into the container).
@@ -99,18 +110,17 @@ ENV PATH=${RTEMS_ROOT}/bin:${PATH}
 
 # 1. RSB toolchain (riscv-rtems7-gcc/binutils/gdb).
 # Cloned from git rather than a release tarball since esp32c3db postdates the last
-# tagged RSB release. The riscv bset is architecture-scoped, not BSP-specific, so it
-# should cover esp32c3db too - but verify "rtems-riscv" is the right bset name in
-# this checkout (../source-builder/sb-set-builder --list-bsets) before relying on it.
-RUN git clone https://gitlab.rtems.org/rtems/tools/rtems-source-builder.git ${HOME}/rtems-source-builder && \
+# tagged RSB release. Uses the github.com/RTEMS mirror - gitlab.rtems.org, the
+# canonical origin, is unreachable through some egress proxies (this one included).
+RUN git clone https://github.com/RTEMS/rtems-source-builder.git ${HOME}/rtems-source-builder && \
     cd ${HOME}/rtems-source-builder/rtems && \
     ../source-builder/sb-set-builder --prefix=${RTEMS_ROOT} 7/rtems-riscv
 
 # 2. RTEMS kernel, configured for the esp32c3db BSP, built from RTEMS's `main`
-# branch since esp32c3db hasn't shipped in a tagged release yet.
-RUN git clone https://gitlab.rtems.org/rtems/rtos/rtems.git ${HOME}/kernel && \
+# branch since esp32c3db hasn't shipped in a tagged release yet. Same github.com/RTEMS
+# mirror as above.
+RUN git clone https://github.com/RTEMS/rtems.git ${HOME}/kernel && \
     cd ${HOME}/kernel && \
-    git checkout origin/main && \
     ./waf bspdefaults --rtems-bsps=riscv/esp32c3db > config.ini && \
     sed -i -e "s|RTEMS_POSIX_API = False|RTEMS_POSIX_API = True|" config.ini && \
     ./waf configure --prefix=${RTEMS_ROOT} && \
@@ -121,13 +131,14 @@ RUN git clone https://gitlab.rtems.org/rtems/rtos/rtems.git ${HOME}/kernel && \
 RUN pip3 install --break-system-packages esptool
 
 # 4. OpenOCD, built from source per the BSP docs' call for a "development version"
-# rather than a distro package. Add --enable-<adapter> flags for your specific JTAG
-# probe (or the ESP32-C3's built-in USB-JTAG) - see `./configure --help` in the
-# openocd checkout for the current option names.
+# rather than a distro package. Mainline OpenOCD already ships ESP32-C3 target/board
+# configs (tcl/target/esp32c3.cfg, tcl/board/esp32c3-builtin.cfg for the chip's
+# built-in USB-JTAG) - --enable-esp_usb_jtag below covers that; add other
+# --enable-<adapter> flags for an external JTAG probe as needed.
 RUN git clone https://github.com/openocd-org/openocd.git ${HOME}/openocd && \
     cd ${HOME}/openocd && \
     ./bootstrap && \
-    ./configure --prefix=${RTEMS_ROOT} && \
+    ./configure --prefix=${RTEMS_ROOT} --enable-esp_usb_jtag && \
     make -j$(nproc) && \
     make install && \
     cd ${HOME} && rm -rf ${HOME}/openocd
