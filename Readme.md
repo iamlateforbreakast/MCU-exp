@@ -50,6 +50,17 @@ idf.py build
 See `workspace/ESP32-C3/ESP32-C3.md` for details, including flashing over the board's USB-CDC
 serial port.
 
+## ESP32-C3 RTEMS development
+
+```
+podman compose up -d esp32c3-rtems-dev
+podman exec -it esp32c3-rtems-dev /bin/bash
+```
+
+Builds RTEMS for the ESP32-C3 using RTEMS's `esp32c3db` BSP instead of ESP-IDF. This BSP is
+unreleased (only on RTEMS's git `main` branch as of this writing), so this container is a
+draft - see `workspace/ESP32-C3-RTEMS/ESP32-C3-RTEMS.md` before relying on it.
+
 ## RP2040 development
 
 ```
