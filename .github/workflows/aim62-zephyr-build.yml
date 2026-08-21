@@ -1,0 +1,49 @@
+name: Build AI-M62 Zephyr dev image
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "Dockerfile.aim62-zephyr"
+      - "workspace/AI-M62-Zephyr/examples/gpio_led_blink/**"
+      - "compose.yaml"
+      - ".github/workflows/aim62-zephyr-build.yml"
+  pull_request:
+    paths:
+      - "Dockerfile.aim62-zephyr"
+      - "workspace/AI-M62-Zephyr/examples/gpio_led_blink/**"
+      - "compose.yaml"
+      - ".github/workflows/aim62-zephyr-build.yml"
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build aim62-zephyr-dev image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.aim62-zephyr
+          push: false
+          load: true
+          tags: aim62-zephyr-dev:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build the gpio_led_blink example for ai_m62_12f_kit
+        run: |
+          docker run --rm \
+            -v "$PWD/workspace/AI-M62-Zephyr/examples/gpio_led_blink:/home/builder/workspace/examples/gpio_led_blink" \
+            aim62-zephyr-dev:ci bash -c \
+            'source "$ZEPHYR_VENV/bin/activate" && \
+             cd "$ZEPHYR_PROJECT" && \
+             west build -b ai_m62_12f_kit -d /tmp/build ~/workspace/examples/gpio_led_blink && \
+             test -f /tmp/build/zephyr/zephyr.bin'
