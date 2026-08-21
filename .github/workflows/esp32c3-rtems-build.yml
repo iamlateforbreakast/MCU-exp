@@ -1,0 +1,50 @@
+name: Build ESP32-C3 RTEMS dev image
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "Dockerfile.esp32c3-rtems"
+      - "compose.yaml"
+      - ".github/workflows/esp32c3-rtems-build.yml"
+  pull_request:
+    paths:
+      - "Dockerfile.esp32c3-rtems"
+      - "compose.yaml"
+      - ".github/workflows/esp32c3-rtems-build.yml"
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # This builds RTEMS's riscv-rtems7 toolchain, the RTEMS kernel, and OpenOCD from
+    # source (see Dockerfile.esp32c3-rtems for why - the esp32c3db BSP isn't in a
+    # tagged RTEMS release yet). It's genuinely slow; give it real headroom instead
+    # of hitting the default 360-minute cap partway through a multi-hour build.
+    timeout-minutes: 240
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build esp32c3-rtems-dev image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.esp32c3-rtems
+          push: false
+          load: true
+          tags: esp32c3-rtems-dev:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Sanity-check the RTEMS toolchain, kernel install, and OpenOCD inside the image
+        run: |
+          docker run --rm esp32c3-rtems-dev:ci bash -c \
+            'riscv-rtems7-gcc --version && \
+             test -d "$RTEMS_ROOT/riscv-rtems7/esp32c3db" && \
+             openocd --version && \
+             esptool.py version'
