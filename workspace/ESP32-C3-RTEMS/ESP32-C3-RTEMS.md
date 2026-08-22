@@ -59,11 +59,13 @@ cd ~/workspace/examples/hello_world
 make
 ```
 
-This produces `hello_world.exe`. The Makefile's `BSP_PC` (the `pkg-config` name for
-the BSP, `riscv-rtems7-esp32c3db`) is inferred from RTEMS's standard waf install
-naming convention, not confirmed against a real build - if `pkg-config` can't find
-it, run `ls $RTEMS_ROOT/lib/pkgconfig` inside the container to see the actual name
-and adjust the Makefile.
+This produces `hello_world.exe`. RTEMS's own pkgconfig support is documented
+upstream as experimental and inconsistent across BSPs, so rather than hardcode a
+guessed `.pc` filename, the Makefile searches `$RTEMS_ROOT` at build time for
+whatever `*esp32c3db*.pc` file the BSP install actually produced and derives
+`PKG_CONFIG_PATH`/the package name from it. If it can't find one, the Makefile
+fails with a pointer to run `find $RTEMS_ROOT -name '*.pc'` yourself to see what's
+actually installed.
 
 **No GPIO example**: unlike every other MCU container's `examples/gpio_led_blink`,
 there's no LED-blink example here. Checked directly against the BSP source

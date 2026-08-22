@@ -51,6 +51,11 @@ jobs:
              openocd --version && \
              esptool.py version'
 
+      - name: List pkgconfig files installed for the BSP (diagnostic)
+        run: |
+          docker run --rm esp32c3-rtems-dev:ci bash -c \
+            'find "$RTEMS_ROOT" -name "*.pc" -o -iname "*esp32c3*" -name "*.pc"'
+
       - name: Build the hello_world example against the esp32c3db BSP
         run: |
           docker run --rm \

@@ -2,15 +2,23 @@
 # esp32c3db BSP, using the same riscv-rtems7-gcc + pkg-config pattern
 # documented in rtems_ubuntu_build.md for the SPARC/RISC-V examples.
 #
-# BSP_PC's name is inferred from RTEMS's standard waf install naming
-# convention (<arch>-rtems<ver>-<bsp>.pc) - it hasn't been confirmed against
-# a real build of this .pc file; adjust it if pkg-config can't find it (see
-# `ls $(RTEMS_ROOT)/lib/pkgconfig` to check the actual name).
-RTEMS_ROOT ?= $(HOME)/rtems/7
-BSP_PC     := riscv-rtems7-esp32c3db
-CC         := riscv-rtems7-gcc
+# RTEMS's own pkgconfig support is documented upstream as experimental and
+# can be inconsistent across BSPs, and esp32c3db is unreleased, so rather
+# than hardcode a guessed .pc filename/location, find it: search RTEMS_ROOT
+# for whatever *.pc file the esp32c3db BSP install actually produced and
+# derive both PKG_CONFIG_PATH and the package name from it.
+RTEMS_ROOT  ?= $(HOME)/rtems/7
+CC          := riscv-rtems7-gcc
+BSP_PC_FILE := $(firstword $(shell find $(RTEMS_ROOT) -name '*esp32c3db*.pc' 2>/dev/null))
+BSP_PC      := $(basename $(notdir $(BSP_PC_FILE)))
 
-export PKG_CONFIG_PATH := $(RTEMS_ROOT)/lib/pkgconfig
+ifeq ($(BSP_PC_FILE),)
+$(error No *esp32c3db*.pc file found under $(RTEMS_ROOT) - run \
+  "find $(RTEMS_ROOT) -name '*.pc'" to see what pkgconfig files the BSP \
+  install actually produced, and adjust this Makefile's BSP_PC_FILE search)
+endif
+
+export PKG_CONFIG_PATH := $(dir $(BSP_PC_FILE))
 
 CFLAGS  := -Wall -Wextra -O2 -g -fdata-sections -ffunction-sections \
            $(shell pkg-config --cflags $(BSP_PC))
