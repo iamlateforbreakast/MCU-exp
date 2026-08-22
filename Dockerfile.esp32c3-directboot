@@ -1,0 +1,88 @@
+# Dockerfile to build a container image for bare-metal "direct boot" development
+# targeting the ESP32-C3, based on Espressif's esp32c3-direct-boot-example
+# (https://github.com/espressif/esp32c3-direct-boot-example, vendored under
+# workspace/ESP32-C3-DirectBoot/). Distinct from Dockerfile.esp32c3 (ESP-IDF/FreeRTOS,
+# loaded via the 2nd stage bootloader) and Dockerfile.esp32c3-rtems (RTEMS's esp32c3db
+# BSP): this one runs straight from flash with no bootloader at all - a bare linker
+# script plus newlib startup code jumps directly to main(). See
+# workspace/ESP32-C3-DirectBoot/ESP32-C3-DirectBoot.md for details.
+#
+# CAUTION - draft, NOT image build-verified: no Docker daemon was available in the
+# sandbox this was drafted in, so this Dockerfile itself has not actually been built.
+# What has been verified: downloading this exact riscv-none-elf-gcc release (12.2.0-3)
+# and using it, plus a plain host cmake/ninja, to configure and build
+# workspace/ESP32-C3-DirectBoot/examples/gpio_led_blink end-to-end (including the
+# esp-hal-components FetchContent step), producing a valid gpio_led_blink.bin. The
+# container image build, esptool flashing, and behavior on real hardware are all
+# unverified - confirm this builds on CI before relying on it, and cross-check against
+# ESP32-C3-DirectBoot.md.
+#
+# Intended for use with podman (see compose.yaml, which relies on userns_mode: keep-id
+# to map the host user's UID/GID into the container).
+FROM ubuntu:24.04
+
+LABEL com.github.containers.toolbox="true" \
+      com.github.debarshiray.toolbox="true"
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && \
+    apt-get -y upgrade && \
+    apt-get install -y \
+        cmake \
+        curl \
+        gdb-multiarch \
+        git \
+        ninja-build \
+        python3 \
+        python3-pip \
+        python3-venv \
+        sudo \
+        udev \
+        vim \
+        wget && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Username and UID/GID are configurable so the container's user can match the
+# host user podman maps in via userns_mode: keep-id.
+ARG USERNAME=builder
+ARG USER_UID=1000
+ARG USER_GID=${USER_UID}
+
+# ubuntu:24.04 ships a stock "ubuntu" user/group at 1000:1000; remove it so the
+# configurable UID/GID below don't collide with it.
+# Added to sudo and dialout groups (dialout for serial/USB flashing access)
+RUN userdel -r ubuntu && \
+    groupadd -g ${USER_GID} ${USERNAME} && \
+    useradd -u ${USER_UID} -g ${USER_GID} -c "ESP32-C3 Direct Boot Developer" \
+            -G sudo,dialout -d "/home/${USERNAME}" --create-home "${USERNAME}" && \
+    export PS1="\[\033[01;34m\](podman) \[\033[00m\]\u@\h:\w\$ " >> /home/${USERNAME}/.bashrc
+
+# Allow sudo without password
+RUN echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+RUN touch /etc/localtime
+RUN echo VARIANT_ID=container >> /etc/os-release
+
+USER ${USERNAME}
+WORKDIR /home/${USERNAME}
+
+# riscv-none-elf-gcc toolchain (xPack release) - same version the upstream example
+# is tested against, and the one this Dockerfile's steps were build-verified with.
+ENV TOOLCHAIN_VERSION=12.2.0-3
+ENV TOOLCHAIN_DIR=/home/${USERNAME}/riscv-none-elf-gcc
+RUN wget -q "https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v${TOOLCHAIN_VERSION}/xpack-riscv-none-elf-gcc-${TOOLCHAIN_VERSION}-linux-x64.tar.gz" -O /tmp/toolchain.tar.gz && \
+    mkdir -p ${TOOLCHAIN_DIR} && \
+    tar -xzf /tmp/toolchain.tar.gz -C ${TOOLCHAIN_DIR} --strip-components=1 && \
+    rm /tmp/toolchain.tar.gz
+
+ENV PATH=${TOOLCHAIN_DIR}/bin:/home/${USERNAME}/.local/bin:${PATH}
+
+# esptool, for writing the built .bin directly into flash at offset 0 - no
+# bootloader/partition table involved, unlike the esp32c3-dev (ESP-IDF) container.
+RUN pip3 install --user esptool
+
+RUN echo "export PATH=${TOOLCHAIN_DIR}/bin:/home/${USERNAME}/.local/bin:\$PATH" >> /home/${USERNAME}/.bashrc
+
+CMD ["/bin/bash"]

@@ -7,6 +7,9 @@ Docker files are provided:
 - One to build rtems 7 and compile binary image with SPARC and RISC architectures
 - One with Renode to execute the compiled binaries
 - One with the ESP-IDF toolchain to develop for the ESP32-C3
+- One with RTEMS's `esp32c3db` BSP toolchain to develop for the ESP32-C3
+- One with a bare RISC-V toolchain to develop bootloader-less "direct boot" applications
+  for the ESP32-C3
 - One with the Pico SDK toolchain to develop for the RP2040
 - One with the Realtek AmebaD SDK toolchain to develop for the RTL8720DN (BW16)
 - One based on the vendor image to develop for the Luckfox Pico (RV1103/RV1106)
@@ -62,6 +65,22 @@ unreleased (only on RTEMS's git `main` branch as of this writing), so this conta
 draft - see `workspace/ESP32-C3-RTEMS/ESP32-C3-RTEMS.md` before relying on it.
 `workspace/ESP32-C3-RTEMS/examples/hello_world` is a console-only example (the BSP has no
 GPIO driver yet, so there's no `gpio_led_blink` for this one).
+
+## ESP32-C3 direct boot development
+
+```
+podman compose up -d esp32c3-directboot-dev
+podman exec -it esp32c3-directboot-dev /bin/bash
+cd ~/workspace/examples/gpio_led_blink
+cmake -S . -B build -D target=esp32c3 -G Ninja
+cmake --build build
+```
+
+Runs an application straight from flash using Espressif's "direct boot" feature - no 2nd
+stage bootloader, no ESP-IDF, no RTEMS. Vendored from Espressif's
+[esp32c3-direct-boot-example](https://github.com/espressif/esp32c3-direct-boot-example); see
+`workspace/ESP32-C3-DirectBoot/ESP32-C3-DirectBoot.md` for details, including flashing with
+`esptool` and debugging over JTAG with GDB/OpenOCD.
 
 ## RP2040 development
 
@@ -130,6 +149,7 @@ vendor SDK's own examples where applicable):
 | MCU | Path | API |
 | --- | --- | --- |
 | ESP32-C3 | `workspace/ESP32-C3/examples/gpio_led_blink` | ESP-IDF `driver/gpio.h` |
+| ESP32-C3 (direct boot) | `workspace/ESP32-C3-DirectBoot/examples/gpio_led_blink` | Vendored `hal/gpio_hal.h`, no ESP-IDF |
 | RP2040 | `workspace/RPI2040/examples/gpio_led_blink` | Pico SDK `pico/stdlib.h` |
 | RTL8720DN | `workspace/RTL8720DN/examples/gpio_led_blink` | Ameba raw GPIO (`GPIO_Init`/`GPIO_WriteBit`) |
 | Luckfox Pico | `workspace/Luckfoxpico/examples/gpio_led_blink` | sysfs (on-device shell script) |

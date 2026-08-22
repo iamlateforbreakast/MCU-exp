@@ -1,0 +1,60 @@
+name: Build ESP32-C3 direct boot dev image
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "Dockerfile.esp32c3-directboot"
+      - "workspace/ESP32-C3-DirectBoot/**"
+      - "compose.yaml"
+      - ".github/workflows/esp32c3-directboot-build.yml"
+  pull_request:
+    paths:
+      - "Dockerfile.esp32c3-directboot"
+      - "workspace/ESP32-C3-DirectBoot/**"
+      - "compose.yaml"
+      - ".github/workflows/esp32c3-directboot-build.yml"
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build esp32c3-directboot-dev image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.esp32c3-directboot
+          push: false
+          load: true
+          tags: esp32c3-directboot-dev:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Sanity-check the toolchain and esptool inside the image
+        run: |
+          docker run --rm esp32c3-directboot-dev:ci bash -c \
+            'riscv-none-elf-gcc --version && esptool.py version'
+
+      - name: Build the gpio_led_blink example against the vendored direct-boot HAL/linker scripts
+        run: |
+          # Mount read-only and build in a copy under the container's own home
+          # directory instead: the bind-mounted source dir is owned by the
+          # runner's host UID, which the non-root "builder" user inside the
+          # container has no write permission on (same issue as the
+          # esp32c3-rtems-dev workflow).
+          docker run --rm \
+            -v "$PWD/workspace/ESP32-C3-DirectBoot:/home/builder/workspace:ro" \
+            esp32c3-directboot-dev:ci bash -c \
+            'cp -r ~/workspace /tmp/ESP32-C3-DirectBoot && \
+             cd /tmp/ESP32-C3-DirectBoot/examples/gpio_led_blink && \
+             cmake -S . -B build -D target=esp32c3 -G Ninja && \
+             cmake --build build && \
+             test -f build/gpio_led_blink.bin'
