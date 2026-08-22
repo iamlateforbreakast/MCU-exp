@@ -60,6 +60,8 @@ podman exec -it esp32c3-rtems-dev /bin/bash
 Builds RTEMS for the ESP32-C3 using RTEMS's `esp32c3db` BSP instead of ESP-IDF. This BSP is
 unreleased (only on RTEMS's git `main` branch as of this writing), so this container is a
 draft - see `workspace/ESP32-C3-RTEMS/ESP32-C3-RTEMS.md` before relying on it.
+`workspace/ESP32-C3-RTEMS/examples/hello_world` is a console-only example (the BSP has no
+GPIO driver yet, so there's no `gpio_led_blink` for this one).
 
 ## RP2040 development
 

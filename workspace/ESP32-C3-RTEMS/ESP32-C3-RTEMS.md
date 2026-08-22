@@ -49,11 +49,31 @@ on `PATH` automatically.
 
 ## Building an application
 
-Once the kernel/BSP install above succeeds, an application is built and linked
-against it with the `riscv-rtems7-gcc` toolchain, following the same
-RTEMS-configuration-object + link pattern used in `rtems_ubuntu_build.md`'s SPARC/
-RISC-V examples, but targeting `riscv/esp32c3db` instead of `sparc/leon3` or
-`riscv/rv64imafdc`.
+`examples/hello_world` is a minimal RTEMS app (console output only - see below for
+why not GPIO) built and linked against the `esp32c3db` BSP with the
+`riscv-rtems7-gcc` toolchain, following the same RTEMS-configuration-object + link
+pattern used in `rtems_ubuntu_build.md`'s SPARC/RISC-V examples:
+
+```
+cd ~/workspace/examples/hello_world
+make
+```
+
+This produces `hello_world.exe`. The Makefile's `BSP_PC` (the `pkg-config` name for
+the BSP, `riscv-rtems7-esp32c3db`) is inferred from RTEMS's standard waf install
+naming convention, not confirmed against a real build - if `pkg-config` can't find
+it, run `ls $RTEMS_ROOT/lib/pkgconfig` inside the container to see the actual name
+and adjust the Makefile.
+
+**No GPIO example**: unlike every other MCU container's `examples/gpio_led_blink`,
+there's no LED-blink example here. Checked directly against the BSP source
+(`bsps/riscv/esp32/` in the RTEMS tree) - `esp32c3db` currently only implements
+`start`, `irq`, `clock` (SYSTIMER), and `console` (UART0/USB-Serial) drivers, no
+GPIO driver. The only GPIO-related thing in the BSP headers is a raw address for
+Espressif's ROM `gpio_output_set()` function - usable in principle, but calling a
+ROM function directly by address on untested hardware isn't something to present
+as a working example. Revisit once RTEMS upstream adds a real GPIO driver for this
+BSP.
 
 ## Flashing and monitoring
 

@@ -6,11 +6,13 @@ on:
       - main
     paths:
       - "Dockerfile.esp32c3-rtems"
+      - "workspace/ESP32-C3-RTEMS/examples/hello_world/**"
       - "compose.yaml"
       - ".github/workflows/esp32c3-rtems-build.yml"
   pull_request:
     paths:
       - "Dockerfile.esp32c3-rtems"
+      - "workspace/ESP32-C3-RTEMS/examples/hello_world/**"
       - "compose.yaml"
       - ".github/workflows/esp32c3-rtems-build.yml"
   workflow_dispatch: {}
@@ -48,3 +50,10 @@ jobs:
              test -d "$RTEMS_ROOT/riscv-rtems7/esp32c3db" && \
              openocd --version && \
              esptool.py version'
+
+      - name: Build the hello_world example against the esp32c3db BSP
+        run: |
+          docker run --rm \
+            -v "$PWD/workspace/ESP32-C3-RTEMS/examples/hello_world:/home/builder/workspace/examples/hello_world" \
+            esp32c3-rtems-dev:ci bash -c \
+            'cd ~/workspace/examples/hello_world && make && test -f hello_world.exe'
