@@ -14,12 +14,15 @@ builds the RSB toolchain and RTEMS kernel from source instead of a released
 On CI (a runner with real internet access): the full `riscv-rtems7` toolchain -
 binutils 2.47, gdb 17.2, gcc 15.2.0 + newlib, rtems-tools 7 - built successfully
 (~65 minutes); the RTEMS kernel build targeting `riscv/esp32c3db` succeeded; and
-esptool installed. Two real bugs were found and fixed along the way: the upstream
+esptool installed. Three real bugs were found and fixed along the way: the upstream
 `7/rtems-riscv` bset pulls in an unrelated, broken `devel/sis-2-1` (SPARC/ERC32
 simulator) package, which the Dockerfile now excludes by building from a local copy
-of the bset; and OpenOCD's `configure` needs its bundled `jimtcl` submodule, which
-the Dockerfile now clones with `--recursive`. OpenOCD itself finishing, and the
-image's sanity check, haven't succeeded yet. Cross-check each step against the
+of the bset; and OpenOCD needs both `git clone --recursive` (to populate its
+bundled `jimtcl` submodule) *and* `--enable-internal-jimtcl` at configure time -
+per OpenOCD's `configure.ac`, that build path is opt-in regardless of whether the
+submodule is populated, so the clone-only fix still failed identically. OpenOCD
+itself finishing its build, and the image's sanity check, haven't succeeded yet.
+Cross-check each step against the
 [riscv BSPs page](https://docs.rtems.org/docs/main/user/bsps/bsps-riscv.html)
 before relying on it, and expect to keep iterating on the Dockerfile.
 
