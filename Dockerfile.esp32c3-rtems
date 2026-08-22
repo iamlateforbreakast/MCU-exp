@@ -15,22 +15,26 @@
 # github.com/RTEMS/rtems(-source-builder) mirrors are used in place of
 # gitlab.rtems.org, which some egress policies block outright.
 #
-# On a runner with real internet access, this image now builds successfully
-# end-to-end: the riscv-rtems7 toolchain (binutils 2.47, gdb 17.2, gcc
-# 15.2.0+newlib, rtems-tools 7; ~65 minutes, ~23GB), the RTEMS kernel configured
-# for riscv/esp32c3db, esptool, and OpenOCD (built with the internal jimtcl) all
-# build. Four real bugs were found and fixed along the way (see the relevant
-# step's comments): the upstream `7/rtems-riscv` bset pulls in an unrelated,
+# Confirmed on CI (a GitHub Actions runner with real internet access, unlike
+# the sandbox this was drafted in): this image now builds successfully
+# end-to-end and passes its sanity check
+# (https://github.com/iamlateforbreakast/MCU-exp/actions/runs/32550028020) -
+# the riscv-rtems7 toolchain (binutils 2.47, gdb 17.2, gcc 15.2.0+newlib,
+# rtems-tools 7; ~65 minutes, ~23GB), the RTEMS kernel configured for
+# riscv/esp32c3db, esptool, and OpenOCD (built with the internal jimtcl) all
+# build and are on PATH. Four real bugs were found and fixed getting here (see
+# the relevant step's comments): the upstream `7/rtems-riscv` bset pulls in an unrelated,
 # broken `devel/sis-2-1` (SPARC/ERC32 simulator) package that step 1 excludes;
 # OpenOCD's build needs both `git clone --recursive` (for its bundled jimtcl
 # submodule) *and* `--enable-internal-jimtcl` at configure time (per
 # configure.ac, that codepath is opt-in regardless of whether the submodule is
 # present); and pip silently falls back to a user-site install as this non-root
 # user, which PATH didn't include (fixed by adding it there). What's still
-# unverified: the actual usage instructions below (application build/link,
-# flashing, debugging) - only the image build and its sanity check have run.
-# Cross-check against https://docs.rtems.org/docs/main/user/bsps/bsps-riscv.html
-# and expect to keep iterating.
+# unverified: the usage instructions below (application build/link, flashing,
+# debugging) - only the image build and its sanity check have actually run,
+# not a real application against the BSP or real hardware. Cross-check against
+# https://docs.rtems.org/docs/main/user/bsps/bsps-riscv.html before relying on
+# those.
 #
 # Intended for use with podman (see compose.yaml, which relies on userns_mode: keep-id
 # to map the host user's UID/GID into the container).

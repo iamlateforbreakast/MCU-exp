@@ -11,8 +11,11 @@ it has not shipped in a tagged RTEMS release. `Dockerfile.esp32c3-rtems` therefo
 builds the RSB toolchain and RTEMS kernel from source instead of a released
 `rtems-source-builder` bset.
 
-On CI (a runner with real internet access), the image now builds successfully
-end-to-end and passes its sanity check: the full `riscv-rtems7` toolchain -
+Confirmed on CI (a runner with real internet access, unlike the sandbox this was
+drafted in):
+[this run](https://github.com/iamlateforbreakast/MCU-exp/actions/runs/32550028020)
+built the image successfully end-to-end and passed its sanity check. The full
+`riscv-rtems7` toolchain -
 binutils 2.47, gdb 17.2, gcc 15.2.0 + newlib, rtems-tools 7 - builds (~65 minutes);
 the RTEMS kernel build targeting `riscv/esp32c3db` succeeds; esptool installs; and
 OpenOCD builds with its internal jimtcl. Four real bugs were found and fixed along
