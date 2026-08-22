@@ -7,28 +7,30 @@
 # rtems-dev service), which builds RTEMS for SPARC/leon3 and generic RISC-V for use
 # under QEMU/Renode rather than for real ESP32-C3 hardware.
 #
-# CAUTION - draft, build-tested through steps 1-3: esp32c3db is not in a tagged
-# RTEMS release as of this writing - it only exists on RTEMS's git `main` branch
-# (the upcoming RTEMS 7), confirmed present at
+# CAUTION - draft, image build-verified: esp32c3db is not in a tagged RTEMS
+# release as of this writing - it only exists on RTEMS's git `main` branch (the
+# upcoming RTEMS 7), confirmed present at
 # spec/build/bsps/riscv/esp32/bspesp32c3db.yml. That means the RTEMS kernel below is
 # built from `main`, not a release tarball like build_rtems.sh uses for RTEMS 6.
 # github.com/RTEMS/rtems(-source-builder) mirrors are used in place of
 # gitlab.rtems.org, which some egress policies block outright.
 #
-# On a runner with real internet access, steps 1-3 below have all built
-# successfully for real: the riscv-rtems7 toolchain (binutils 2.47, gdb 17.2, gcc
-# 15.2.0+newlib, rtems-tools 7; ~65 minutes, ~23GB), the RTEMS kernel configured for
-# riscv/esp32c3db, and esptool. Three real build bugs were found and fixed along
-# the way (see steps 1 and 4's comments): the upstream `7/rtems-riscv` bset pulls
-# in an unrelated, broken `devel/sis-2-1` (SPARC/ERC32 simulator) package that step
-# 1 excludes; and OpenOCD's build needs both `git clone --recursive` (to populate
-# its bundled jimtcl submodule) *and* `--enable-internal-jimtcl` at configure time
-# (per configure.ac, that codepath is opt-in regardless of whether the submodule
-# is present - the first fix attempt only did the clone half and still failed).
-# Step 4 (OpenOCD actually finishing its build, and the image's sanity check)
-# hasn't completed successfully yet - cross-check against
-# https://docs.rtems.org/docs/main/user/bsps/bsps-riscv.html and expect to keep
-# iterating.
+# On a runner with real internet access, this image now builds successfully
+# end-to-end: the riscv-rtems7 toolchain (binutils 2.47, gdb 17.2, gcc
+# 15.2.0+newlib, rtems-tools 7; ~65 minutes, ~23GB), the RTEMS kernel configured
+# for riscv/esp32c3db, esptool, and OpenOCD (built with the internal jimtcl) all
+# build. Four real bugs were found and fixed along the way (see the relevant
+# step's comments): the upstream `7/rtems-riscv` bset pulls in an unrelated,
+# broken `devel/sis-2-1` (SPARC/ERC32 simulator) package that step 1 excludes;
+# OpenOCD's build needs both `git clone --recursive` (for its bundled jimtcl
+# submodule) *and* `--enable-internal-jimtcl` at configure time (per
+# configure.ac, that codepath is opt-in regardless of whether the submodule is
+# present); and pip silently falls back to a user-site install as this non-root
+# user, which PATH didn't include (fixed by adding it there). What's still
+# unverified: the actual usage instructions below (application build/link,
+# flashing, debugging) - only the image build and its sanity check have run.
+# Cross-check against https://docs.rtems.org/docs/main/user/bsps/bsps-riscv.html
+# and expect to keep iterating.
 #
 # Intended for use with podman (see compose.yaml, which relies on userns_mode: keep-id
 # to map the host user's UID/GID into the container).
@@ -103,7 +105,10 @@ USER ${USERNAME}
 WORKDIR /home/${USERNAME}
 
 ENV RTEMS_ROOT=/home/${USERNAME}/rtems/7
-ENV PATH=${RTEMS_ROOT}/bin:${PATH}
+# /home/${USERNAME}/.local/bin: pip (step 3 below) can't write the system
+# site-packages as this non-root user, so it silently falls back to a user
+# install there - without this, esptool ends up installed but not on PATH.
+ENV PATH=${RTEMS_ROOT}/bin:/home/${USERNAME}/.local/bin:${PATH}
 
 # 1. RSB toolchain (riscv-rtems7-gcc/binutils/gdb).
 # Cloned from git rather than a release tarball since esp32c3db postdates the last
