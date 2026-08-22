@@ -1,0 +1,165 @@
+# Dockerfile to build a container image for RTEMS development targeting the
+# ESP32-C3, using RTEMS's "esp32c3db" BSP (riscv/esp32c3db):
+# https://gitlab.rtems.org/rtems/rtos/rtems/-/merge_requests/1160
+#
+# Distinct from Dockerfile.esp32c3, which targets the same chip through Espressif's
+# own ESP-IDF/FreeRTOS stack instead of RTEMS, and from Dockerfile.ubuntu (the
+# rtems-dev service), which builds RTEMS for SPARC/leon3 and generic RISC-V for use
+# under QEMU/Renode rather than for real ESP32-C3 hardware.
+#
+# CAUTION - draft, image build-verified: esp32c3db is not in a tagged RTEMS
+# release as of this writing - it only exists on RTEMS's git `main` branch (the
+# upcoming RTEMS 7), confirmed present at
+# spec/build/bsps/riscv/esp32/bspesp32c3db.yml. That means the RTEMS kernel below is
+# built from `main`, not a release tarball like build_rtems.sh uses for RTEMS 6.
+# github.com/RTEMS/rtems(-source-builder) mirrors are used in place of
+# gitlab.rtems.org, which some egress policies block outright.
+#
+# Confirmed on CI (a GitHub Actions runner with real internet access, unlike
+# the sandbox this was drafted in): this image now builds successfully
+# end-to-end and passes its sanity check
+# (https://github.com/iamlateforbreakast/MCU-exp/actions/runs/32550028020) -
+# the riscv-rtems7 toolchain (binutils 2.47, gdb 17.2, gcc 15.2.0+newlib,
+# rtems-tools 7; ~65 minutes, ~23GB), the RTEMS kernel configured for
+# riscv/esp32c3db, esptool, and OpenOCD (built with the internal jimtcl) all
+# build and are on PATH. Four real bugs were found and fixed getting here (see
+# the relevant step's comments): the upstream `7/rtems-riscv` bset pulls in an unrelated,
+# broken `devel/sis-2-1` (SPARC/ERC32 simulator) package that step 1 excludes;
+# OpenOCD's build needs both `git clone --recursive` (for its bundled jimtcl
+# submodule) *and* `--enable-internal-jimtcl` at configure time (per
+# configure.ac, that codepath is opt-in regardless of whether the submodule is
+# present); and pip silently falls back to a user-site install as this non-root
+# user, which PATH didn't include (fixed by adding it there). What's still
+# unverified: the usage instructions below (application build/link, flashing,
+# debugging) - only the image build and its sanity check have actually run,
+# not a real application against the BSP or real hardware. Cross-check against
+# https://docs.rtems.org/docs/main/user/bsps/bsps-riscv.html before relying on
+# those.
+#
+# Intended for use with podman (see compose.yaml, which relies on userns_mode: keep-id
+# to map the host user's UID/GID into the container).
+FROM ubuntu:24.04
+
+LABEL com.github.containers.toolbox="true" \
+      com.github.debarshiray.toolbox="true"
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# RSB (RTEMS Source Builder) and RTEMS kernel/toolchain build deps, plus OpenOCD's
+# own build deps (autoconf/automake/libtool/libusb/libftdi/libhidapi) since it's
+# built from source rather than installed as a distro package.
+RUN apt-get update && \
+    apt-get -y upgrade && \
+    apt-get install -y \
+        autoconf \
+        automake \
+        bison \
+        build-essential \
+        curl \
+        flex \
+        g++ \
+        gdb-multiarch \
+        git \
+        libcap2-bin \
+        libftdi1-dev \
+        libhidapi-dev \
+        libncurses5-dev \
+        libtool \
+        libusb-1.0-0 \
+        libusb-1.0-0-dev \
+        pax \
+        pkg-config \
+        python3 \
+        python3-dev \
+        python3-pip \
+        python3-venv \
+        python-is-python3 \
+        sudo \
+        texinfo \
+        udev \
+        unzip \
+        vim \
+        wget \
+        zlib1g-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Username and UID/GID are configurable so the container's user can match the
+# host user podman maps in via userns_mode: keep-id.
+ARG USERNAME=builder
+ARG USER_UID=1000
+ARG USER_GID=${USER_UID}
+
+# ubuntu:24.04 ships a stock "ubuntu" user/group at 1000:1000; remove it so the
+# configurable UID/GID below don't collide with it.
+# Added to sudo and dialout groups (dialout for serial/JTAG access to the board).
+RUN userdel -r ubuntu && \
+    groupadd -g ${USER_GID} ${USERNAME} && \
+    useradd -u ${USER_UID} -g ${USER_GID} -c "ESP32-C3 RTEMS Developer" \
+            -G sudo,dialout -d "/home/${USERNAME}" --create-home "${USERNAME}" && \
+    export PS1="\[\033[01;34m\](podman) \[\033[00m\]\u@\h:\w\$ " >> /home/${USERNAME}/.bashrc
+
+# Allow sudo without password
+RUN echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+RUN touch /etc/localtime
+RUN echo VARIANT_ID=container >> /etc/os-release
+
+USER ${USERNAME}
+WORKDIR /home/${USERNAME}
+
+ENV RTEMS_ROOT=/home/${USERNAME}/rtems/7
+# /home/${USERNAME}/.local/bin: pip (step 3 below) can't write the system
+# site-packages as this non-root user, so it silently falls back to a user
+# install there - without this, esptool ends up installed but not on PATH.
+ENV PATH=${RTEMS_ROOT}/bin:/home/${USERNAME}/.local/bin:${PATH}
+
+# 1. RSB toolchain (riscv-rtems7-gcc/binutils/gdb).
+# Cloned from git rather than a release tarball since esp32c3db postdates the last
+# tagged RSB release. Uses the github.com/RTEMS mirror - gitlab.rtems.org, the
+# canonical origin, is unreachable through some egress proxies (this one included).
+#
+# Builds from a local copy of 7/rtems-riscv.bset with its "devel/sis-2-1" line
+# removed - that package (RTEMS's SPARC/ERC32 simulator) is unrelated to this
+# RISC-V target and fails to build here (see the header comment above); everything
+# else in the bset (binutils/gdb/gcc+newlib/rtems-tools) builds cleanly without it.
+RUN git clone https://github.com/RTEMS/rtems-source-builder.git ${HOME}/rtems-source-builder && \
+    cd ${HOME}/rtems-source-builder/rtems && \
+    grep -v '^devel/sis-2-1$' config/7/rtems-riscv.bset > config/7/rtems-riscv-esp32c3.bset && \
+    ../source-builder/sb-set-builder --prefix=${RTEMS_ROOT} 7/rtems-riscv-esp32c3
+
+# 2. RTEMS kernel, configured for the esp32c3db BSP, built from RTEMS's `main`
+# branch since esp32c3db hasn't shipped in a tagged release yet. Same github.com/RTEMS
+# mirror as above.
+RUN git clone https://github.com/RTEMS/rtems.git ${HOME}/kernel && \
+    cd ${HOME}/kernel && \
+    ./waf bspdefaults --rtems-bsps=riscv/esp32c3db > config.ini && \
+    sed -i -e "s|RTEMS_POSIX_API = False|RTEMS_POSIX_API = True|" config.ini && \
+    ./waf configure --prefix=${RTEMS_ROOT} && \
+    ./waf && \
+    ./waf install
+
+# 3. esptool, for loading images onto the board over its native USB-Serial/JTAG port.
+RUN pip3 install --break-system-packages esptool
+
+# 4. OpenOCD, built from source per the BSP docs' call for a "development version"
+# rather than a distro package. Mainline OpenOCD already ships ESP32-C3 target/board
+# configs (tcl/target/esp32c3.cfg, tcl/board/esp32c3-builtin.cfg for the chip's
+# built-in USB-JTAG) - --enable-esp_usb_jtag below covers that; add other
+# --enable-<adapter> flags for an external JTAG probe as needed.
+# --recursive pulls the bundled jimtcl submodule (no system jimtcl/pkg-config
+# package is installed above), and --enable-internal-jimtcl is required to
+# actually build against it - per configure.ac, the internal-jimtcl codepath is
+# opt-in (default no) and unrelated to whether the submodule is populated, so
+# configure fails the same way with or without it unless this flag is passed.
+# Deprecated upstream (in favor of a system jimtcl package) but still the
+# simplest option here.
+RUN git clone --recursive https://github.com/openocd-org/openocd.git ${HOME}/openocd && \
+    cd ${HOME}/openocd && \
+    ./bootstrap && \
+    ./configure --prefix=${RTEMS_ROOT} --enable-esp_usb_jtag --enable-internal-jimtcl && \
+    make -j$(nproc) && \
+    make install && \
+    cd ${HOME} && rm -rf ${HOME}/openocd
+
+CMD ["/bin/bash"]

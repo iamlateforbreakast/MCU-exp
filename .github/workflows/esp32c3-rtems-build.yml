@@ -1,0 +1,70 @@
+name: Build ESP32-C3 RTEMS dev image
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "Dockerfile.esp32c3-rtems"
+      - "workspace/ESP32-C3-RTEMS/examples/hello_world/**"
+      - "compose.yaml"
+      - ".github/workflows/esp32c3-rtems-build.yml"
+  pull_request:
+    paths:
+      - "Dockerfile.esp32c3-rtems"
+      - "workspace/ESP32-C3-RTEMS/examples/hello_world/**"
+      - "compose.yaml"
+      - ".github/workflows/esp32c3-rtems-build.yml"
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # This builds RTEMS's riscv-rtems7 toolchain, the RTEMS kernel, and OpenOCD from
+    # source (see Dockerfile.esp32c3-rtems for why - the esp32c3db BSP isn't in a
+    # tagged RTEMS release yet). It's genuinely slow; give it real headroom instead
+    # of hitting the default 360-minute cap partway through a multi-hour build.
+    timeout-minutes: 240
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build esp32c3-rtems-dev image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.esp32c3-rtems
+          push: false
+          load: true
+          tags: esp32c3-rtems-dev:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Sanity-check the RTEMS toolchain, kernel install, and OpenOCD inside the image
+        run: |
+          docker run --rm esp32c3-rtems-dev:ci bash -c \
+            'riscv-rtems7-gcc --version && \
+             test -d "$RTEMS_ROOT/riscv-rtems7/esp32c3db" && \
+             openocd --version && \
+             esptool.py version'
+
+      - name: List pkgconfig files installed for the BSP (diagnostic)
+        run: |
+          docker run --rm esp32c3-rtems-dev:ci bash -c \
+            'find "$RTEMS_ROOT" -name "*.pc" -o -iname "*esp32c3*" -name "*.pc"'
+
+      - name: Build the hello_world example against the esp32c3db BSP
+        run: |
+          # Mount read-only and build in a copy under the container's own home
+          # directory instead: the bind-mounted source dir is owned by the
+          # runner's host UID, which the non-root "builder" user inside the
+          # container has no write permission on (confirmed by CI: "Fatal
+          # error: can't create init.o: Permission denied").
+          docker run --rm \
+            -v "$PWD/workspace/ESP32-C3-RTEMS/examples/hello_world:/home/builder/workspace/examples/hello_world:ro" \
+            esp32c3-rtems-dev:ci bash -c \
+            'cp -r ~/workspace/examples/hello_world /tmp/hello_world && \
+             cd /tmp/hello_world && make && test -f hello_world.exe'
