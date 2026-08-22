@@ -7,31 +7,27 @@
 # rtems-dev service), which builds RTEMS for SPARC/leon3 and generic RISC-V for use
 # under QEMU/Renode rather than for real ESP32-C3 hardware.
 #
-# CAUTION - draft, partially build-tested: esp32c3db is not in a tagged RTEMS
-# release as of this writing - it only exists on RTEMS's git `main` branch (the
-# upcoming RTEMS 7), confirmed present at
+# CAUTION - draft, now build-tested through the toolchain stage: esp32c3db is not
+# in a tagged RTEMS release as of this writing - it only exists on RTEMS's git
+# `main` branch (the upcoming RTEMS 7), confirmed present at
 # spec/build/bsps/riscv/esp32/bspesp32c3db.yml. That means the RTEMS kernel below is
-# built from `main`, not a release tarball like build_rtems.sh uses for RTEMS 6. The
-# RSB bset used ("7/rtems-riscv") and the OpenOCD ESP32-C3 target/board configs
-# (tcl/target/esp32c3.cfg, tcl/board/esp32c3-builtin.cfg) were both confirmed to
-# exist upstream, and github.com/RTEMS/rtems(-source-builder) are used in place of
-# gitlab.rtems.org, which some egress policies (including the one this Dockerfile
-# was drafted under) block outright.
+# built from `main`, not a release tarball like build_rtems.sh uses for RTEMS 6.
+# github.com/RTEMS/rtems(-source-builder) mirrors are used in place of
+# gitlab.rtems.org, which some egress policies block outright.
 #
-# This image was test-built through package install and user setup successfully,
-# then into the real `sb-set-builder --prefix=... 7/rtems-riscv` toolchain step,
-# which confirmed the bset resolves and RSB's multi-mirror fallback logic runs for
-# real - but every source host it tried (dl.rtems.org, then www.kernel.org for its
-# first dependency, device-tree-compiler) was blocked by that environment's egress
-# policy, as were ftpmirror.gnu.org, ftp.gnu.org, gcc.gnu.org, and sourceware.org
-# when checked directly - the hosts RSB needs next for gmp/mpfr/mpc/binutils/gcc.
-# Only github.com- and pypi.org-style hosts were reachable there. Building this
-# image for real therefore requires an environment with unrestricted (or at least
-# GNU-mirror/kernel.org/sourceware.org-permitting) internet access - a developer
-# workstation or CI runner, not a locked-down sandbox. Once run somewhere with that
-# access, cross-check against
-# https://docs.rtems.org/docs/main/user/bsps/bsps-riscv.html and expect to iterate
-# further (this has still never completed end-to-end).
+# On a runner with real internet access, this actually built the full toolchain for
+# real: riscv-rtems7-binutils-2.47, gdb-17.2, gcc-15.2.0+newlib, and rtems-tools-7
+# all built successfully (~65 minutes, ~23GB). The upstream `7/rtems-riscv` bset
+# also pulls in `devel/sis-2-1` (RTEMS's SPARC/ERC32 instruction simulator - unused
+# for RISC-V/ESP32-C3), and *that* unrelated package failed to build; RSB doesn't
+# surface the underlying compiler error to the main log, only a report file inside
+# the (by-then-discarded) build container. Since sis has nothing to do with this
+# target, step 1 below builds from a local copy of the bset with that one line
+# removed instead of chasing the sis failure. The RTEMS kernel build (step 2) and
+# OpenOCD ESP32-C3 target/board configs (tcl/target/esp32c3.cfg,
+# tcl/board/esp32c3-builtin.cfg, confirmed to exist upstream) still haven't been
+# exercised end-to-end - cross-check against
+# https://docs.rtems.org/docs/main/user/bsps/bsps-riscv.html and expect to iterate.
 #
 # Intended for use with podman (see compose.yaml, which relies on userns_mode: keep-id
 # to map the host user's UID/GID into the container).
@@ -112,9 +108,15 @@ ENV PATH=${RTEMS_ROOT}/bin:${PATH}
 # Cloned from git rather than a release tarball since esp32c3db postdates the last
 # tagged RSB release. Uses the github.com/RTEMS mirror - gitlab.rtems.org, the
 # canonical origin, is unreachable through some egress proxies (this one included).
+#
+# Builds from a local copy of 7/rtems-riscv.bset with its "devel/sis-2-1" line
+# removed - that package (RTEMS's SPARC/ERC32 simulator) is unrelated to this
+# RISC-V target and fails to build here (see the header comment above); everything
+# else in the bset (binutils/gdb/gcc+newlib/rtems-tools) builds cleanly without it.
 RUN git clone https://github.com/RTEMS/rtems-source-builder.git ${HOME}/rtems-source-builder && \
     cd ${HOME}/rtems-source-builder/rtems && \
-    ../source-builder/sb-set-builder --prefix=${RTEMS_ROOT} 7/rtems-riscv
+    grep -v '^devel/sis-2-1$' config/7/rtems-riscv.bset > config/7/rtems-riscv-esp32c3.bset && \
+    ../source-builder/sb-set-builder --prefix=${RTEMS_ROOT} 7/rtems-riscv-esp32c3
 
 # 2. RTEMS kernel, configured for the esp32c3db BSP, built from RTEMS's `main`
 # branch since esp32c3db hasn't shipped in a tagged release yet. Same github.com/RTEMS
