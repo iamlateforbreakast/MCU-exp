@@ -18,12 +18,21 @@ $(error No *esp32c3db*.pc file found under $(RTEMS_ROOT) - run \
   install actually produced, and adjust this Makefile's BSP_PC_FILE search)
 endif
 
-export PKG_CONFIG_PATH := $(dir $(BSP_PC_FILE))
+# A plain "export PKG_CONFIG_PATH := ..." doesn't reliably reach the $(shell
+# pkg-config ...) calls below: those run immediately, at parse time, to fill
+# in these := variables, and make's export doesn't reliably apply to $(shell)
+# calls made while it's still parsing the rest of the file (confirmed by CI:
+# the .pc file above was found, yet pkg-config still reported it missing).
+# Set PKG_CONFIG_PATH inline on each pkg-config invocation instead, so it's
+# unambiguous.
+BSP_PC_DIR := $(dir $(BSP_PC_FILE))
+export PKG_CONFIG_PATH := $(BSP_PC_DIR)
+PKG_CONFIG := PKG_CONFIG_PATH=$(BSP_PC_DIR) pkg-config
 
 CFLAGS  := -Wall -Wextra -O2 -g -fdata-sections -ffunction-sections \
-           $(shell pkg-config --cflags $(BSP_PC))
-LDFLAGS := $(shell pkg-config --variable=ABI_FLAGS $(BSP_PC)) \
-           $(shell pkg-config --libs $(BSP_PC))
+           $(shell $(PKG_CONFIG) --cflags $(BSP_PC))
+LDFLAGS := $(shell $(PKG_CONFIG) --variable=ABI_FLAGS $(BSP_PC)) \
+           $(shell $(PKG_CONFIG) --libs $(BSP_PC))
 
 all: hello_world.exe
 
