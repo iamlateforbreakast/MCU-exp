@@ -58,7 +58,13 @@ jobs:
 
       - name: Build the hello_world example against the esp32c3db BSP
         run: |
+          # Mount read-only and build in a copy under the container's own home
+          # directory instead: the bind-mounted source dir is owned by the
+          # runner's host UID, which the non-root "builder" user inside the
+          # container has no write permission on (confirmed by CI: "Fatal
+          # error: can't create init.o: Permission denied").
           docker run --rm \
-            -v "$PWD/workspace/ESP32-C3-RTEMS/examples/hello_world:/home/builder/workspace/examples/hello_world" \
+            -v "$PWD/workspace/ESP32-C3-RTEMS/examples/hello_world:/home/builder/workspace/examples/hello_world:ro" \
             esp32c3-rtems-dev:ci bash -c \
-            'cd ~/workspace/examples/hello_world && make && test -f hello_world.exe'
+            'cp -r ~/workspace/examples/hello_world /tmp/hello_world && \
+             cd /tmp/hello_world && make && test -f hello_world.exe'
