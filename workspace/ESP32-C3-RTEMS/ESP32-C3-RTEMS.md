@@ -3,21 +3,23 @@
 The `esp32c3-rtems-dev` container (see `Dockerfile.esp32c3-rtems` / `compose.yaml`)
 builds RTEMS for the ESP32-C3 using RTEMS's `esp32c3db` BSP (`riscv/esp32c3db`).
 
-**Status: draft, toolchain build-verified.** `esp32c3db` was merged into RTEMS's
-git `main` branch via
+**Status: draft, build-verified through the toolchain, kernel, and esptool steps.**
+`esp32c3db` was merged into RTEMS's git `main` branch via
 [merge request !1160](https://gitlab.rtems.org/rtems/rtos/rtems/-/merge_requests/1160)
 and is documented under RTEMS's development docs (targeting the upcoming RTEMS 7);
 it has not shipped in a tagged RTEMS release. `Dockerfile.esp32c3-rtems` therefore
 builds the RSB toolchain and RTEMS kernel from source instead of a released
 `rtems-source-builder` bset.
 
-On CI (a runner with real internet access), the full `riscv-rtems7` toolchain -
+On CI (a runner with real internet access): the full `riscv-rtems7` toolchain -
 binutils 2.47, gdb 17.2, gcc 15.2.0 + newlib, rtems-tools 7 - built successfully
-(~65 minutes). The upstream `7/rtems-riscv` bset also pulls in `devel/sis-2-1`
-(RTEMS's SPARC/ERC32 simulator, unrelated to this RISC-V target), which failed to
-build; the Dockerfile now builds from a local copy of that bset with the `sis` line
-removed instead. The RTEMS kernel build (targeting `riscv/esp32c3db`) and OpenOCD
-still haven't been exercised end-to-end. Cross-check each step against the
+(~65 minutes); the RTEMS kernel build targeting `riscv/esp32c3db` succeeded; and
+esptool installed. Two real bugs were found and fixed along the way: the upstream
+`7/rtems-riscv` bset pulls in an unrelated, broken `devel/sis-2-1` (SPARC/ERC32
+simulator) package, which the Dockerfile now excludes by building from a local copy
+of the bset; and OpenOCD's `configure` needs its bundled `jimtcl` submodule, which
+the Dockerfile now clones with `--recursive`. OpenOCD itself finishing, and the
+image's sanity check, haven't succeeded yet. Cross-check each step against the
 [riscv BSPs page](https://docs.rtems.org/docs/main/user/bsps/bsps-riscv.html)
 before relying on it, and expect to keep iterating on the Dockerfile.
 
