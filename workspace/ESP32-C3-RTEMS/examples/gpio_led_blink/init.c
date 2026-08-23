@@ -81,6 +81,14 @@ rtems_task Init( rtems_task_argument ignored )
 #define CONFIGURE_APPLICATION_NEEDS_CONSOLE_DRIVER
 
 #define CONFIGURE_MAXIMUM_TASKS 1
+/*
+ * rtems_gpio_initialize() creates one semaphore per GPIO bank
+ * (bsps/shared/dev/gpio/gpio-support.c's CREATE_LOCK) to guard its internal
+ * pin/bank state - without this, it fails with RTEMS_TOO_MANY before any
+ * pin is ever touched, since CONFIGURE_MAXIMUM_SEMAPHORES otherwise
+ * defaults to 0.
+ */
+#define CONFIGURE_MAXIMUM_SEMAPHORES 1
 
 #define CONFIGURE_RTEMS_INIT_TASKS_TABLE
 
