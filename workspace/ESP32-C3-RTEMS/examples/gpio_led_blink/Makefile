@@ -6,8 +6,9 @@
 # NOTE: this links against RTEMS's generic GPIO API (bsp/gpio.h), which
 # requires the draft driver in ../../upstream-gpio-driver/ to have been
 # integrated into the esp32c3db BSP build first - see that driver's
-# README. Until then this will fail to build with an undefined-reference
-# or missing-header error, not a working image.
+# README's "Integration steps" (confirmed working end-to-end 2026-08-23,
+# but not persisted in the esp32c3-rtems-dev image, so it needs to be
+# re-applied per container until it lands in the Dockerfile/upstream).
 RTEMS_ROOT  ?= $(HOME)/rtems/7
 CC          := riscv-rtems7-gcc
 BSP_PC_FILE := $(firstword $(shell find $(RTEMS_ROOT) -name '*esp32c3db*.pc' 2>/dev/null))

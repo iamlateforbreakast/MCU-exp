@@ -4,12 +4,11 @@
  * clear) against the register-level GPIO driver drafted in
  * ../../upstream-gpio-driver/bsps/riscv/esp32/gpio/gpio.c.
  *
- * STATUS: draft, like the driver it depends on - not yet buildable
- * against a real esp32c3db image. That driver hasn't been integrated
- * into the BSP (see its own README's "Integration steps") or tested
- * against hardware, so this example won't link until it has been. This
- * replaces the "no GPIO example" placeholder that used to be here (see
- * ../../ESP32-C3-RTEMS.md's history) now that a GPIO driver draft exists.
+ * STATUS: builds and links cleanly once the GPIO driver it depends on is
+ * integrated into the BSP per ../../upstream-gpio-driver/README.md's
+ * "Integration steps" (not persisted in the esp32c3-rtems-dev image yet -
+ * see that README and ../../ESP32-C3-RTEMS.md). Not yet run against real
+ * hardware.
  *
  * Adjust LED_GPIO_0/1/2 below to match how LEDs are actually wired.
  * GPIO4/5/6 are placeholders - deliberately not the ESP32-C3's strapping

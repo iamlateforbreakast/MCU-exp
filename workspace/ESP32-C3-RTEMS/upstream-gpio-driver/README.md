@@ -102,16 +102,45 @@ land upstream or be re-applied per build until then):
    `bsps/riscv/esp32/include/c3/gpio-regs.h` to the existing
    `install:` entry that already installs `c3/chip_definitions.h` to
    `${BSP_INCLUDEDIR}/${ESPRESSIF_CHIP_VARIANT}`.
-4. Rebuild: `./waf configure --rtems-bsps=riscv/esp32c3db && ./waf && ./waf install`.
-5. An application using it needs, in this order:
-   `#include <c3/chip_definitions.h>`, `#include <c3/gpio-regs.h>` (for
-   `BSP_GPIO_PIN_COUNT`), then `#include <bsp/gpio.h>`; call
-   `rtems_gpio_initialize()` once during `Init`, then
-   `rtems_gpio_request_pin()` / `rtems_gpio_set()` / `rtems_gpio_clear()` as
-   usual. A `gpio_led_blink` example mirroring `examples/hello_world` and
-   the `workspace/ESP32-C3/examples/gpio_led_blink` (ESP-IDF) /
-   `workspace/RPI2040/examples/gpio_led_blink` examples elsewhere in this
-   repo is the natural next step once this builds cleanly.
+4. **Also patch `bsps/riscv/esp32/include/bsp.h`** (not part of this
+   directory - it's the existing shared BSP header, not vendored in this
+   repo): add
+   `#define BSP_GPIO_PIN_COUNT 22` / `#define BSP_GPIO_PINS_PER_BANK 32`
+   right after the `#include <bsp/default-initial-extension.h>` line, the
+   same way `bsps/arm/beagle/include/bsp.h` defines those two macros
+   directly rather than via a separate header. This step is required, not
+   optional: `bsps/shared/dev/gpio/gpio-support.c` (the framework `gpio.c`
+   plugs into) includes only `<bsp/gpio.h>`, which `#error`s out if
+   `BSP_GPIO_PIN_COUNT`/`BSP_GPIO_PINS_PER_BANK` aren't already defined by
+   the time it's processed - `gpio-regs.h` defining them isn't enough on its
+   own since nothing includes `gpio-regs.h` before `gpio-support.c` gets
+   compiled. (An earlier attempt at this step tried `#include
+   <c3/gpio-regs.h>` / `#include <gpio-regs.h>` from `bsp.h` instead of
+   defining the macros inline - don't do that: `${ESPRESSIF_CHIP_VARIANT}`
+   in step 3's YAML is referenced nowhere else in the tree, so it resolves
+   empty and `gpio-regs.h` installs flat as `<gpio-regs.h>`, not under a
+   `c3/` subdirectory, even though the in-tree source lives at
+   `bsps/riscv/esp32/include/c3/gpio-regs.h` - the same include line can't
+   satisfy both the in-tree build and the installed layout, and
+   `chip_definitions.h` has this identical pre-existing flattening quirk.)
+5. Rebuild: `./waf configure --prefix=$RTEMS_ROOT --rtems-bsps=riscv/esp32c3db && ./waf && ./waf install`
+   (`--prefix=$RTEMS_ROOT` matters - a bare `./waf configure` without it
+   resets the install prefix to waf's default `/opt/rtems`, which
+   `builder` can't write to; `Dockerfile.esp32c3-rtems`'s original
+   configure call passes it explicitly for this reason).
+6. An application using it just needs `#include <bsp/gpio.h>` (the
+   `BSP_GPIO_PIN_COUNT`/`BSP_GPIO_PINS_PER_BANK` macros come along for free
+   via `bsp.h`, per step 4); call `rtems_gpio_initialize()` once during
+   `Init`, then `rtems_gpio_request_pin()` / `rtems_gpio_set()` /
+   `rtems_gpio_clear()` as usual. `examples/gpio_led_blink/init.c` in this
+   repo does exactly this and builds cleanly with these steps applied.
+
+**Confirmed working end-to-end** (2026-08-23, inside `esp32c3-rtems-dev`):
+steps 1-6 above produce a clean `./waf` build (`gpio.c` and
+`bsps/shared/dev/gpio/gpio-support.c` both compile, `librtemsbsp.a` links)
+and `examples/gpio_led_blink` then builds and links to a `.exe` with no
+warnings under `-Wall -Wextra`. Still not run against real hardware - see
+"Testing plan" below.
 
 ## Testing plan once it builds
 

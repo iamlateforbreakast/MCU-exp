@@ -67,18 +67,20 @@ whatever `*esp32c3db*.pc` file the BSP install actually produced and derives
 fails with a pointer to run `find $RTEMS_ROOT -name '*.pc'` yourself to see what's
 actually installed.
 
-**`examples/gpio_led_blink` - draft, not yet buildable**: unlike every other MCU
-container's `examples/gpio_led_blink`, this one doesn't build against the current
-image yet. Checked directly against the BSP source (`bsps/riscv/esp32/` in the
-RTEMS tree) - `esp32c3db` upstream still only implements `start`, `irq`, `clock`
-(SYSTIMER), and `console` (UART0/USB-Serial) drivers, no GPIO driver. A
-register-level GPIO driver targeting RTEMS's generic `bsp/gpio.h` API has been
-drafted in `upstream-gpio-driver/` (register offsets/bits checked against
-Espressif's real headers, but not yet integrated into the BSP build, compiled, or
-tested against hardware - see that directory's README), and `examples/
-gpio_led_blink/init.c` is written against that API, but until the driver is
-actually integrated (see its README's "Integration steps") this example fails to
-build, not run. Revisit once that driver lands, here or upstream.
+**`examples/gpio_led_blink` - builds, not yet run on hardware**: `esp32c3db`
+upstream still only implements `start`, `irq`, `clock` (SYSTIMER), and `console`
+(UART0/USB-Serial) drivers itself, no GPIO driver. A register-level GPIO driver
+targeting RTEMS's generic `bsp/gpio.h` API is drafted in `upstream-gpio-driver/`
+(register offsets/bits checked against Espressif's real headers). Its README's
+"Integration steps" - copying the driver into an RTEMS checkout, patching two
+`spec/build/bsps/riscv/esp32/*.yml` files plus `bsps/riscv/esp32/include/bsp.h`,
+then `./waf configure --prefix=$RTEMS_ROOT --rtems-bsps=riscv/esp32c3db && ./waf
+&& ./waf install` - were confirmed working end-to-end in `esp32c3-rtems-dev` on
+2026-08-23: the BSP builds clean and `examples/gpio_led_blink` links to a `.exe`
+with no warnings. Because `~/kernel` in the container is cloned fresh each image
+build and isn't persisted, that integration currently needs to be re-applied
+per-container (or land in `Dockerfile.esp32c3-rtems`/upstream) until then - see
+the driver README for the exact steps. Still untested against real hardware.
 
 ## Flashing and monitoring
 
