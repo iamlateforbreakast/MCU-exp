@@ -49,10 +49,10 @@ on `PATH` automatically.
 
 ## Building an application
 
-`examples/hello_world` is a minimal RTEMS app (console output only - see below for
-why not GPIO) built and linked against the `esp32c3db` BSP with the
-`riscv-rtems7-gcc` toolchain, following the same RTEMS-configuration-object + link
-pattern used in `rtems_ubuntu_build.md`'s SPARC/RISC-V examples:
+`examples/hello_world` is a minimal RTEMS app (console output only) built and
+linked against the `esp32c3db` BSP with the `riscv-rtems7-gcc` toolchain,
+following the same RTEMS-configuration-object + link pattern used in
+`rtems_ubuntu_build.md`'s SPARC/RISC-V examples:
 
 ```
 cd ~/workspace/examples/hello_world
@@ -67,15 +67,18 @@ whatever `*esp32c3db*.pc` file the BSP install actually produced and derives
 fails with a pointer to run `find $RTEMS_ROOT -name '*.pc'` yourself to see what's
 actually installed.
 
-**No GPIO example**: unlike every other MCU container's `examples/gpio_led_blink`,
-there's no LED-blink example here. Checked directly against the BSP source
-(`bsps/riscv/esp32/` in the RTEMS tree) - `esp32c3db` currently only implements
-`start`, `irq`, `clock` (SYSTIMER), and `console` (UART0/USB-Serial) drivers, no
-GPIO driver. The only GPIO-related thing in the BSP headers is a raw address for
-Espressif's ROM `gpio_output_set()` function - usable in principle, but calling a
-ROM function directly by address on untested hardware isn't something to present
-as a working example. Revisit once RTEMS upstream adds a real GPIO driver for this
-BSP.
+**`examples/gpio_led_blink` - draft, not yet buildable**: unlike every other MCU
+container's `examples/gpio_led_blink`, this one doesn't build against the current
+image yet. Checked directly against the BSP source (`bsps/riscv/esp32/` in the
+RTEMS tree) - `esp32c3db` upstream still only implements `start`, `irq`, `clock`
+(SYSTIMER), and `console` (UART0/USB-Serial) drivers, no GPIO driver. A
+register-level GPIO driver targeting RTEMS's generic `bsp/gpio.h` API has been
+drafted in `upstream-gpio-driver/` (register offsets/bits checked against
+Espressif's real headers, but not yet integrated into the BSP build, compiled, or
+tested against hardware - see that directory's README), and `examples/
+gpio_led_blink/init.c` is written against that API, but until the driver is
+actually integrated (see its README's "Integration steps") this example fails to
+build, not run. Revisit once that driver lands, here or upstream.
 
 ## Flashing and monitoring
 
