@@ -125,7 +125,9 @@
 
 /*
  * IO_MUX per-pin register: IO_MUX_GPIOn_REG = IO_MUX_GPIO0_REG + 4 * n.
- * UNVERIFIED - see file header.
+ * Originally flagged unverified when this file was first drafted; since
+ * confirmed against Espressif's real io_mux_reg.h while drafting
+ * ../../../../upstream-spi-driver/ - see that driver's README.
  */
 #define IO_MUX_GPIO0_REG       0x0004
 #define IO_MUX_GPIO_REG( pin ) ( IO_MUX_GPIO0_REG + 4 * ( pin ) )
@@ -133,6 +135,13 @@
 #define IO_MUX_FUN_WPD BSP_BIT32( 7 )
 #define IO_MUX_FUN_WPU BSP_BIT32( 8 )
 #define IO_MUX_FUN_IE  BSP_BIT32( 9 )
+
+/*
+ * Per-pin open-drain select, in the GPIO_PINn_REG defined above (not
+ * IO_MUX) - confirmed against Espressif's real gpio_reg.h while drafting
+ * ../../../../upstream-i2c-driver/, which needs it for SCL/SDA.
+ */
+#define GPIO_PIN_PAD_DRIVER BSP_BIT32( 2 ) /* 1 = open-drain, 0 = push-pull */
 
 #define IO_MUX_MCU_SEL( val )     BSP_FLD32( val, 12, 14 )
 #define IO_MUX_MCU_SEL_GET( reg ) BSP_FLD32GET( reg, 12, 14 )
