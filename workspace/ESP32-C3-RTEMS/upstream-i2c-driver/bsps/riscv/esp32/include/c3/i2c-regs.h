@@ -57,6 +57,9 @@
 #include <bsp.h>
 #include <bsp/utility.h>
 #include <c3/gpio-regs.h>
+/* GPIO_FUNC_{IN,OUT}_SEL{,_CFG_REG}/GPIO_SIG_IN_SEL live here, not in
+ * gpio-regs.h - shared with the SPI driver's GPIO-matrix routing. */
+#include <c3/spi-regs.h>
 
 #endif /* ASM */
 
@@ -116,7 +119,7 @@
 #define I2C_SCL_STOP_SETUP( v )   BSP_FLD32( v, 0, 8 )
 
 /* Source-clock select/pre-divider - left at reset defaults (XTAL, /1) in
- * this driver; only the *_PERIOD/*_HOLD/*_SETUP registers above are used
+ * this driver; only the PERIOD, HOLD, and SETUP registers above are used
  * to set the actual bit rate. See I2C_SOURCE_CLK_HZ below. */
 #define I2C_CLK_CONF_REG 0x54
 

@@ -60,6 +60,7 @@
 
 #include <bsp.h>
 #include <bsp/utility.h>
+#include <bsp/esp32c3-i2c.h>
 #include <c3/i2c-regs.h>
 #include <c3/gpio-regs.h>
 

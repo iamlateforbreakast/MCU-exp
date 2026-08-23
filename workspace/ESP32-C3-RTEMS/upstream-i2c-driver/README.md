@@ -1,13 +1,80 @@
 # Draft ESP32-C3 I2C driver for RTEMS's `esp32c3db` BSP
 
-**Status: draft, unbuilt, untested.** Like `../upstream-gpio-driver/` and
-`../upstream-spi-driver/`, this has not been compiled, linked, or run
-against real hardware.
+**Status: builds clean, but does not work on real hardware.** Confirmed
+2026-08-23, same day as `../upstream-spi-driver/`'s hardware testing.
+Three real build-time bugs found and fixed along the way (see "Bugs fixed"
+below); after that it builds and links, but every transfer deadlocks the
+calling task forever - the same class of failure as the SPI driver, though
+the specific cause found so far is different (and, unlike the SPI case,
+not yet root-caused).
 
 This directory mirrors its intended final path in the RTEMS tree
 (`bsps/riscv/esp32/...`), for the same reason as the other two: RTEMS isn't
 vendored in this repo, and this is meant to be easy to diff/copy into a
 real checkout and eventually into an upstream merge request.
+
+## Bugs fixed to get this building
+
+1. `i2c-regs.h` had a comment containing a literal `*_HOLD/*_SETUP`
+   sequence, which GCC's `-Wcomment` parses as a nested `/*` inside a
+   comment (`-Werror=comment`). Reworded to avoid the character sequence.
+2. `esp32c3-i2c.c` uses `GPIO_FUNC_OUT_SEL_CFG_REG`/`GPIO_FUNC_OUT_SEL`/
+   `GPIO_FUNC_IN_SEL_CFG_REG`/`GPIO_FUNC_IN_SEL`/`GPIO_SIG_IN_SEL` for its
+   GPIO-matrix pin routing, but those macros are only defined in
+   `../upstream-spi-driver/`'s `spi-regs.h`, not this directory's own
+   `i2c-regs.h` or the GPIO driver's `gpio-regs.h` - an
+   `-Wimplicit-function-declaration` away from being caught. Fixed by
+   having `i2c-regs.h` also `#include <c3/spi-regs.h>`.
+3. `i2c_bus_register_esp32c3()` had no prototype declaration anywhere
+   (`-Werror=missing-prototypes`), same issue the SPI driver had. Added
+   `bsp/esp32c3-i2c.h`, matching that fix's pattern.
+
+## What's confirmed broken on real hardware
+
+Tested via a bus-scan application (`examples/i2c_bus_scan` - probes every
+7-bit address 0x03-0x77 with a zero-length read, needing no specific
+device, per this README's own "Testing plan" step 3 below) against a real
+ESP32-C3 with nothing but the driver's own internal pull-ups on SCL/SDA
+(no device on the bus at all - and the anomaly below is independent of
+that, since it's a pure on-chip register readback issue, not a bus/
+electrical one).
+
+**`I2C_CTR_REG` never reflects any bit this driver writes to it.**
+Concretely: immediately after `i2c_bus_register_esp32c3()` does
+`I2C_REG(I2C_CTR_REG) |= I2C_MS_MODE`, reading `I2C_CTR_REG` back still
+shows the chip's power-on-reset value (`0x0000020b`) with bit 4
+(`I2C_MS_MODE`) absent - as if the write never happened. This isn't a
+timing/sync artifact: the same reset value persists identically all the
+way through `esp32c3_i2c_set_clock()`'s own `I2C_CONF_UPGATE` trigger (the
+mechanism that's supposed to sync pending config into the module's clock
+domain) and is still there at the end of registration and at every
+`I2C_CTR_REG` read taken during a hung `esp32c3_i2c_transfer()` call.
+`I2C_TRANS_START` (bit 5) never shows as set either, for the same reason.
+Since the peripheral therefore never actually receives a "start a master
+transaction" signal, `I2C_SR_REG.I2C_BUS_BUSY` (bit 4) never sets, no bus
+activity occurs at all, and the driver's `for (;;)` completion-poll loop
+in `esp32c3_i2c_transfer()` waits forever for an interrupt status bit
+(`I2C_TRANS_COMPLETE_INT`/`I2C_ERROR_INT_MASK`) that can never fire.
+
+Tried and ruled out as the explanation:
+- Reordering `I2C_FSM_RST` and `I2C_MS_MODE` (in case asserting FSM_RST
+  has a hardware side effect that clobbers other `I2C_CTR_REG` bits
+  moments after they're set) - no change.
+- Dropping `I2C_FSM_RST` from registration entirely - no change; even a
+  lone `I2C_MS_MODE` write, checked immediately afterward with nothing
+  else touching the register in between, doesn't stick.
+
+Not yet checked: whether `I2C_CTR_REG`'s address (`0x04`, offset from
+`I2C_BASE = 0x60013000`) is actually correct - the one thing this specific
+investigation didn't get to before being paused. Verifying that offset
+(and the exact bit positions of `I2C_MS_MODE`/`I2C_TRANS_START`/
+`I2C_CONF_UPGATE`/`I2C_FSM_RST` within it) against Espressif's real
+`i2c_reg.h` is the natural next step, the same technique that resolved
+several false leads on the SPI driver - see
+`../upstream-spi-driver/README.md`'s status section for that precedent,
+including its caveat that a summarizing fetch of a header file already
+produced one confidently-wrong answer there, so any such check should be
+treated as a claim to verify, not a fact to trust outright.
 
 ## What's here
 
