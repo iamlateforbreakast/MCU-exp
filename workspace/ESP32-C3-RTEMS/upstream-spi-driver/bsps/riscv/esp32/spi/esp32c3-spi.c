@@ -57,6 +57,7 @@
 
 #include <bsp.h>
 #include <bsp/utility.h>
+#include <bsp/esp32c3-spi.h>
 #include <c3/spi-regs.h>
 #include <c3/gpio-regs.h>
 
@@ -233,7 +234,6 @@ static int esp32c3_spi_configure( esp32c3_spi_bus *bus )
 }
 
 static int esp32c3_spi_do_chunk(
-  esp32c3_spi_bus    *bus,
   const uint8_t       *tx,
   uint8_t             *rx,
   size_t               n
@@ -332,7 +332,7 @@ static int esp32c3_spi_transfer(
       size_t chunk = remaining > SPI2_MAX_BYTES_PER_TRANSACTION
         ? SPI2_MAX_BYTES_PER_TRANSACTION
         : remaining;
-      int    rv = esp32c3_spi_do_chunk( bus, tx, rx, chunk );
+      int    rv = esp32c3_spi_do_chunk( tx, rx, chunk );
 
       if ( rv != 0 ) {
         esp32c3_spi_cs_deassert( bus );

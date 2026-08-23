@@ -1,9 +1,58 @@
 # Draft ESP32-C3 SPI driver for RTEMS's `esp32c3db` BSP
 
-**Status: draft, unbuilt, untested.** Like the companion
-`../upstream-gpio-driver/`, this has not been compiled, linked, or run
-against real hardware - it hasn't been dropped into an RTEMS checkout and
-built with `waf` yet.
+**Status: builds clean, but does not work on real hardware.** Unlike when
+this was first drafted, this has now been built, integrated into the BSP,
+and run against a real ESP32-C3 (2026-08-23, driving both an ST7789 LCD
+and an SH1106 OLED - two independent devices, same result). Every single SPI transaction deadlocks the calling task forever:
+`esp32c3_spi_do_chunk()`'s `SPI_POLL_WHILE` loop after setting
+`SPI_CMD_REG.usr` never exits, because that bit never self-clears, and
+`SPI_DMA_INT_RAW_REG.trans_done` (bit 12) never fires either - this is a
+genuine hardware-level stall (confirmed with a bounded retry loop
+substituted for the real unbounded one, purely for diagnosis), not a
+status-bit-misread bug or something specific to the first transaction only.
+
+Ruled out via live register reads against the real chip, each cross-checked
+against Espressif's actual `esp32c3` headers (`spi_reg.h`, `spi_struct.h`,
+`system_reg.h`, `reg_base.h`) fetched fresh rather than recalled from
+memory:
+- Every register offset in `spi-regs.h` (`SPI_CMD_REG` 0x00 through
+  `SPI_SLAVE_REG` 0xE0) matches `spi_reg.h` exactly.
+- `SPI_USR_MOSI`/`SPI_USR_MISO` (bits 27/28) match `spi_struct.h`'s
+  `usr_mosi`/`usr_miso` fields exactly.
+- `SPI_CMD_REG.update` (bit 23) does self-clear correctly, both during
+  `esp32c3_spi_configure()` and again at the top of every
+  `esp32c3_spi_do_chunk()` call - so basic APB register access and *that*
+  handshake both work.
+- GP-SPI2's peripheral clock-enable and reset bits
+  (`SYSTEM_PERIP_CLK_EN0_REG`/`SYSTEM_PERIP_RST_EN0_REG`, bit 6 in each,
+  base `0x600c0000`) were already in the correct state (clocked, not held
+  in reset) before this driver ever touches SPI2 - not a missing
+  clock-gating step.
+
+Also tried: the "Testing plan" section's own suggested first hardware
+test - wiring MOSI (GPIO5) directly to MISO (GPIO3) and sending a known
+byte full-duplex. The received byte did match the sent byte (`0xa5` in,
+`0xa5` out) - but this is a false positive, not confirmation: `SPI_W0_REG`
+is a shared TX/RX buffer, pre-loaded with the TX byte before the
+transaction starts. A live register dump across the whole (bounded, for
+diagnosis) wait showed `SPI_W0_REG` frozen at the exact TX value the
+entire time, for every command byte tried, not just this one - meaning
+nothing ever touched it, not that a loopback exchange occurred. This
+actually strengthens the "hardware genuinely never runs the transaction"
+conclusion rather than weakening it: real bit-shifting, even a failed or
+partial exchange, would be expected to change the register's contents at
+some point.
+
+Not yet checked: an oscilloscope/logic analyzer on SCLK/MOSI/CS, which
+would show directly whether the GPIO-matrix routing is actually getting a
+clock onto the pin at all, or whether the peripheral is generating clock
+edges internally but never latching completion - this needs that hardware
+to make progress, per the "Testing plan" section below, which called this
+out as necessary before trusting the driver even before this round of
+testing. Until this is root-caused, none of the examples that depend on
+this driver (`examples/lcd_st7789_spi`, `examples/oled_1in3_sh1106_spi`)
+will actually produce output on their displays, even though they build and
+run without crashing.
 
 This directory mirrors its intended final path in the RTEMS tree
 (`bsps/riscv/esp32/...`), for the same reason as `upstream-gpio-driver/`:

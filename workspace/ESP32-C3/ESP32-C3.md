@@ -35,14 +35,42 @@ idf.py -p /dev/ttyACM0 flash monitor
 
 Adjust the `LED_GPIO_*` pin numbers in `main/gpio_led_blink.c` to match your wiring.
 
+## SH1106 OLED example
+
+`examples/oled_1in3_sh1106_spi` drives a 1.3" 128x64 monochrome SH1106 OLED over SPI
+(`driver/spi_master.h`), drawing a border plus a small square scanning back and forth.
+Confirmed working on real hardware. Wiring and pin assignments are documented in that
+example's own file header - build and flash the same way as `gpio_led_blink` above.
+
+This is also the known-working counterpart to
+`../ESP32-C3-RTEMS/examples/oled_1in3_sh1106_spi`: the draft RTEMS GP-SPI2 driver deadlocks
+on every real SPI transaction on this same hardware (see
+`../ESP32-C3-RTEMS/upstream-spi-driver/README.md`), so this ESP-IDF version exists to
+actually drive the display while that's unresolved.
+
 ## Flashing and monitoring
 
-The ESP32-C3 exposes a native USB-CDC serial port (typically `/dev/ttyACM0` on Linux). Pass it
-through to the container via the `devices` entry in `compose.yaml`, then:
+The ESP32-C3 exposes a native USB-CDC serial port (typically `/dev/ttyACM0` on Linux).
+`compose.yaml`'s `devices` entry passes it through to the container, and `idf.py build`
+inside the container works fine - but `idf.py flash` from *inside* the container has been
+seen to fail with a permission-denied error on `/dev/ttyACM0` despite the passthrough
+(likely an SELinux device-labeling issue with raw device nodes, unlike bind-mounted
+directories which get relabeled via the `:z`/`:U` volume flags already in use elsewhere in
+this compose file). The reliable path: build inside the container, then flash from the
+host directly with the plain `esptool.py` command `idf.py build` prints at the end of its
+output (three files - bootloader, partition table, and the app image - each at its own flash
+offset), since the project directory is bind-mounted and so the `build/` output is visible
+on the host too:
 
 ```
-idf.py -p /dev/ttyACM0 flash monitor
+cd workspace/ESP32-C3/examples/<example>/build
+esptool.py --chip esp32c3 -p /dev/ttyACM0 -b 460800 --before default_reset --after hard_reset \
+  write_flash --flash_mode dio --flash_freq 80m --flash_size 2MB \
+  0x0 bootloader/bootloader.bin 0x10000 <example>.bin 0x8000 partition_table/partition-table.bin
 ```
+
+`idf.py monitor` (run from inside the container) still works fine for viewing serial output,
+since that's a read path with no analogous SELinux friction observed.
 
 ## Firmware output
 

@@ -40,10 +40,10 @@ services:
     volumes:
       - ${ESP32C3_WORKSPACE_DIR:-./workspace/ESP32-C3}:/home/${USERNAME:-builder}/workspace:z,U
       - ${ESP32C3_FIRMWARE_DIR:-./firmware/ESP32-C3}:/home/${USERNAME:-builder}/firmware:z,U
-    # Uncomment and adjust to the serial device exposed by the board on the host
-    # in order to flash/monitor over USB (e.g. the ESP32-C3's native USB-CDC port).
-    # devices:
-    #   - "/dev/ttyACM0:/dev/ttyACM0"
+    # Serial device exposed by the board on the host, needed for
+    # `idf.py flash monitor` to work directly from inside the container.
+    devices:
+      - "/dev/ttyACM0:/dev/ttyACM0"
     stdin_open: true
     tty: true
 
@@ -61,8 +61,9 @@ services:
     volumes:
       - ${ESP32C3RTEMS_WORKSPACE_DIR:-./workspace/ESP32-C3-RTEMS}:/home/${USERNAME:-builder}/workspace:z,U
       - ${ESP32C3RTEMS_FIRMWARE_DIR:-./firmware/ESP32-C3-RTEMS}:/home/${USERNAME:-builder}/firmware:z,U
-    # Uncomment and adjust to the ESP32-C3's built-in USB-JTAG interface (or an
-    # external probe) on the host in order to flash/debug it via OpenOCD.
+    # Flashing is done from the host directly (esptool doesn't need the RTEMS
+    # toolchain), so the board's serial device isn't passed into this container.
+    # Uncomment if you want to flash/monitor from inside the container instead.
     # devices:
     #   - "/dev/ttyACM0:/dev/ttyACM0"
     stdin_open: true
