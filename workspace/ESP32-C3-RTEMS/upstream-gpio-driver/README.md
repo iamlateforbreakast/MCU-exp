@@ -52,23 +52,30 @@ Checked directly against this BSP's existing
 while drafting this) and cross-referenced against Espressif's public
 `GPIO_PROCPU_INTR = 16` interrupt already defined there:
 
-- **High confidence**: `GPIO_BASE` (`0x6000_4000`) and `IO_MUX_BASE`
-  (`0x6000_9000`) - consistent with the already-confirmed
-  `SYSTIMER_BASE`/`RTC_CNTL_BASE`/`USB_SERIAL_JTAG_BASE` addresses in that
-  same file's memory map. The plain GPIO controller register offsets
+- **Confirmed**: `GPIO_BASE` (`0x6000_4000`) and `IO_MUX_BASE`
+  (`0x6000_9000`) - originally reasoned by adjacency to the
+  already-confirmed `SYSTIMER_BASE`/`RTC_CNTL_BASE`/`USB_SERIAL_JTAG_BASE`
+  addresses in that same file's memory map, now independently confirmed
+  against Espressif's real `reg_base.h` while drafting
+  `../upstream-spi-driver/`. The plain GPIO controller register offsets
   (`GPIO_OUT_REG`, `GPIO_ENABLE_REG`, `GPIO_IN_REG`, `GPIO_STATUS_REG`, the
   per-pin `GPIO_PINn_REG` interrupt-config registers and their `INT_TYPE`
   field) follow the standard layout shared across the whole ESP32
   xtensa/RISC-V family.
-- **Needs verification against the ESP32-C3 TRM specifically**: the
-  `IO_MUX_GPIOn_REG` per-pin offset formula and the `FUN_IE`/`FUN_WPU`/
-  `FUN_WPD`/`MCU_SEL` bit positions within it. These are recalled from the
+- **Update, now confirmed**: the `IO_MUX_GPIOn_REG` per-pin offset formula
+  and the `FUN_IE`/`FUN_WPU`(`FUN_PU`)/`FUN_WPD`(`FUN_PD`)/`MCU_SEL` bit
+  positions in this file were flagged below as unverified when first
+  drafted. While drafting `../upstream-spi-driver/` (which also touches
+  IO_MUX), they were checked directly against Espressif's real
+  `components/soc/esp32c3/register/soc/io_mux_reg.h` and
+  `.../include/soc/gpio_sig_map.h` - every bit position here turned out
+  correct, including `IO_MUX_FUNCTION_GPIO = 1` (Espressif's own
+  `PIN_FUNC_GPIO` constant) as the GPIO alternate-function selector.
+  `upstream-spi-driver/README.md` has the fetch details.
+  Original unverified note, left for context: these were recalled from the
   general ESP32-family IO_MUX layout, not confirmed against the C3's own
   Technical Reference Manual chapter ("IO MUX and GPIO Matrix") or
-  ESP-IDF's `soc/io_mux_reg.h` for `esp32c3`. Also worth double-checking:
-  whether `IO_MUX_FUNCTION_GPIO = 1` actually selects the GPIO function on
-  *every* pin, or only most of them - a handful of ESP32-C3 pins are
-  documented with non-standard alternate-function numbering.
+  ESP-IDF's `soc/io_mux_reg.h` for `esp32c3`.
 - **Not implemented, flagged in `gpio.c`**: `rtems_gpio_interrupt`'s
   `BOTH_LEVELS` has no corresponding hardware trigger mode on this GPIO
   controller (only disabled/rising/falling/any-edge/low-level/high-level
