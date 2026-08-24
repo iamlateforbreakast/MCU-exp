@@ -11,6 +11,14 @@
 
 LED_PINS="55 56 57"
 
+cleanup() {
+    for pin in $LED_PINS; do
+        [ -d "/sys/class/gpio/gpio$pin" ] && echo 0 > "/sys/class/gpio/gpio$pin/value"
+    done
+    exit 0
+}
+trap cleanup INT TERM
+
 for pin in $LED_PINS; do
     [ -d "/sys/class/gpio/gpio$pin" ] || echo "$pin" > /sys/class/gpio/export
     echo out > "/sys/class/gpio/gpio$pin/direction"

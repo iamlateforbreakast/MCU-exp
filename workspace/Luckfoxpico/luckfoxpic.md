@@ -28,6 +28,13 @@ GPIO interface - it runs directly on the board (over SSH/serial), not in this
 cross-build container. See `examples/gpio_led_blink/README.md` for usage and a
 `libgpiod` alternative.
 
+## ST7789 SPI LCD example
+
+`examples/lcd_st7789_spi/` drives a 1.14" ST7789 SPI TFT from Linux userspace via
+`/dev/spidev0.0`. Needs `spi0` enabled in the board dts first (disabled by default) - see
+`examples/lcd_st7789_spi/README.md` for the kernel rebuild/reflash steps, wiring, and
+build/deploy instructions (no ssh/scp on this image, only telnet).
+
 ## Firmware output
 
 `compose.yaml` also mounts a separate `firmware/Luckfoxpico` host directory to
