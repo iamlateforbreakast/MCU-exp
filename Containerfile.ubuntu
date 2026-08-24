@@ -1,4 +1,4 @@
-# Dockerfile to build a container image to use Rust on top of RTEMS
+# Containerfile to build a container image to use Rust on top of RTEMS
 FROM ubuntu:24.04
 
 LABEL com.github.containers.toolbox="true" \

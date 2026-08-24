@@ -5,13 +5,13 @@ on:
     branches:
       - main
     paths:
-      - "Dockerfile.esp32c3-rtems"
+      - "Containerfile.esp32c3-rtems"
       - "workspace/ESP32-C3-RTEMS/examples/hello_world/**"
       - "compose.yaml"
       - ".github/workflows/esp32c3-rtems-build.yml"
   pull_request:
     paths:
-      - "Dockerfile.esp32c3-rtems"
+      - "Containerfile.esp32c3-rtems"
       - "workspace/ESP32-C3-RTEMS/examples/hello_world/**"
       - "compose.yaml"
       - ".github/workflows/esp32c3-rtems-build.yml"
@@ -21,7 +21,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     # This builds RTEMS's riscv-rtems7 toolchain, the RTEMS kernel, and OpenOCD from
-    # source (see Dockerfile.esp32c3-rtems for why - the esp32c3db BSP isn't in a
+    # source (see Containerfile.esp32c3-rtems for why - the esp32c3db BSP isn't in a
     # tagged RTEMS release yet). It's genuinely slow; give it real headroom instead
     # of hitting the default 360-minute cap partway through a multi-hour build.
     timeout-minutes: 240
@@ -36,7 +36,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: Dockerfile.esp32c3-rtems
+          file: Containerfile.esp32c3-rtems
           push: false
           load: true
           tags: esp32c3-rtems-dev:ci

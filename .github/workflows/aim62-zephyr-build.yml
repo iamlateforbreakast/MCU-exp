@@ -5,13 +5,13 @@ on:
     branches:
       - main
     paths:
-      - "Dockerfile.aim62-zephyr"
+      - "Containerfile.aim62-zephyr"
       - "workspace/AI-M62-Zephyr/examples/gpio_led_blink/**"
       - "compose.yaml"
       - ".github/workflows/aim62-zephyr-build.yml"
   pull_request:
     paths:
-      - "Dockerfile.aim62-zephyr"
+      - "Containerfile.aim62-zephyr"
       - "workspace/AI-M62-Zephyr/examples/gpio_led_blink/**"
       - "compose.yaml"
       - ".github/workflows/aim62-zephyr-build.yml"
@@ -31,7 +31,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: Dockerfile.aim62-zephyr
+          file: Containerfile.aim62-zephyr
           push: false
           load: true
           tags: aim62-zephyr-dev:ci

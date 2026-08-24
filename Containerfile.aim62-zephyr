@@ -1,6 +1,6 @@
-# Dockerfile to build a container image for Zephyr RTOS development targeting the
+# Containerfile to build a container image for Zephyr RTOS development targeting the
 # AI-Thinker M62-12F (BL616, RISC-V) - Zephyr board "ai_m62_12f_kit".
-# Distinct from Dockerfile.aim62, which targets the same MCU family via the vendor's
+# Distinct from Containerfile.aim62, which targets the same MCU family via the vendor's
 # own Ai-M6X SDK instead of Zephyr.
 # Intended for use with podman (see compose.yaml, which relies on userns_mode: keep-id
 # to map the host user's UID/GID into the container).

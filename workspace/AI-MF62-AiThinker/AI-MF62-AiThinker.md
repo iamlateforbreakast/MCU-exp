@@ -3,7 +3,7 @@
 
 # AI-M62 development container
 
-The `aim62-dev` container (see `Dockerfile.aim62` / `compose.yaml`) provides a baseline
+The `aim62-dev` container (see `Containerfile.aim62` / `compose.yaml`) provides a baseline
 riscv64-unknown-elf toolchain plus the Ai-M6X SDK (cloned to `$AIM62_SDK_PATH`, submodules
 initialized under `tools/`). Per the SDK's own convention, projects should use the cross
 compiler from `$AIM62_SDK_PATH/tools` rather than the distro-installed one.

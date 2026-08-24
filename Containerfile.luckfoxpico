@@ -1,4 +1,4 @@
-# Dockerfile to build a container image for Luckfox Pico (RV1103/RV1106) development.
+# Containerfile to build a container image for Luckfox Pico (RV1103/RV1106) development.
 # Based on the vendor's official luckfox_pico SDK image. Unlike the bare-metal MCU
 # containers in this repo, the Buildroot-based SDK is a multi-GB tree that the vendor
 # expects to be cloned on the host and bind-mounted at runtime (see compose.yaml)
@@ -22,7 +22,7 @@ ARG USER_GID=${USER_UID}
 
 # The vendor image's own user/group layout at the target UID/GID is unknown, so
 # remove whatever occupies it first instead of assuming a specific name (unlike
-# the other Dockerfiles here, which know they're deleting ubuntu:24.04's "ubuntu").
+# the other Containerfiles here, which know they're deleting ubuntu:24.04's "ubuntu").
 RUN existing_user="$(getent passwd ${USER_UID} | cut -d: -f1)"; \
     if [ -n "$existing_user" ]; then userdel -r "$existing_user" 2>/dev/null || userdel "$existing_user" || true; fi; \
     existing_group="$(getent group ${USER_GID} | cut -d: -f1)"; \

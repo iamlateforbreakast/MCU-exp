@@ -2,7 +2,7 @@ services:
   rtems-dev:
     build:
       context: .
-      dockerfile: Dockerfile.ubuntu
+      dockerfile: Containerfile.ubuntu
     container_name: rtems-dev
     userns_mode: "keep-id"
     user: "builder"
@@ -14,7 +14,7 @@ services:
   renode:
     build:
       context: .
-      dockerfile: Dockerfile.renode
+      dockerfile: Containerfile.renode
     container_name: renode-emu
     userns_mode: "keep-id"
     user: "builder"
@@ -29,7 +29,7 @@ services:
   esp32c3-dev:
     build:
       context: .
-      dockerfile: Dockerfile.esp32c3
+      dockerfile: Containerfile.esp32c3
       args:
         USERNAME: ${USERNAME:-builder}
         USER_UID: ${USER_UID:-1000}
@@ -50,7 +50,7 @@ services:
   esp32c3-rtems-dev:
     build:
       context: .
-      dockerfile: Dockerfile.esp32c3-rtems
+      dockerfile: Containerfile.esp32c3-rtems
       args:
         USERNAME: ${USERNAME:-builder}
         USER_UID: ${USER_UID:-1000}
@@ -72,7 +72,7 @@ services:
   rp2040-dev:
     build:
       context: .
-      dockerfile: Dockerfile.rp2040
+      dockerfile: Containerfile.rp2040
       args:
         USERNAME: ${USERNAME:-builder}
         USER_UID: ${USER_UID:-1000}
@@ -94,7 +94,7 @@ services:
   rtl8720dn-dev:
     build:
       context: .
-      dockerfile: Dockerfile.rtl8720dn
+      dockerfile: Containerfile.rtl8720dn
       args:
         USERNAME: ${USERNAME:-builder}
         USER_UID: ${USER_UID:-1000}
@@ -115,7 +115,7 @@ services:
   luckfoxpico-dev:
     build:
       context: .
-      dockerfile: Dockerfile.luckfoxpico
+      dockerfile: Containerfile.luckfoxpico
       args:
         USERNAME: ${USERNAME:-builder}
         USER_UID: ${USER_UID:-1000}
@@ -137,7 +137,7 @@ services:
   aim62-dev:
     build:
       context: .
-      dockerfile: Dockerfile.aim62
+      dockerfile: Containerfile.aim62
       args:
         USERNAME: ${USERNAME:-builder}
         USER_UID: ${USER_UID:-1000}
@@ -158,7 +158,7 @@ services:
   aim62-zephyr-dev:
     build:
       context: .
-      dockerfile: Dockerfile.aim62-zephyr
+      dockerfile: Containerfile.aim62-zephyr
       args:
         USERNAME: ${USERNAME:-builder}
         USER_UID: ${USER_UID:-1000}

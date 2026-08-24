@@ -1,4 +1,6 @@
-# Dockerfile to build a container image for ESP32-C3 development using ESP-IDF
+# Containerfile to build a container image for AI Thinker M62 (Ai-M6X family) development.
+# The SDK bundles its own riscv64-unknown-elf toolchain under tools/ (used instead of a
+# distro-installed cross compiler), so gcc-riscv64-unknown-elf here is just a baseline.
 # Intended for use with podman (see compose.yaml, which relies on userns_mode: keep-id
 # to map the host user's UID/GID into the container).
 FROM ubuntu:24.04
@@ -11,17 +13,11 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
     apt-get -y upgrade && \
     apt-get install -y \
-        bison \
         build-essential \
-        ccache \
         cmake \
-        curl \
-        flex \
+        gcc-riscv64-unknown-elf \
+        gdb-multiarch \
         git \
-        gperf \
-        gdb \
-        libffi-dev \
-        libssl-dev \
         libusb-1.0-0 \
         libusb-1.0-0-dev \
         ninja-build \
@@ -47,7 +43,7 @@ ARG USER_GID=${USER_UID}
 # Added to sudo and dialout groups (dialout for serial/USB flashing access)
 RUN userdel -r ubuntu && \
     groupadd -g ${USER_GID} ${USERNAME} && \
-    useradd -u ${USER_UID} -g ${USER_GID} -c "ESP32 Developer" \
+    useradd -u ${USER_UID} -g ${USER_GID} -c "AI-M62 Developer" \
             -G sudo,dialout -d "/home/${USERNAME}" --create-home "${USERNAME}" && \
     export PS1="\[\033[01;34m\](podman) \[\033[00m\]\u@\h:\w\$ " >> /home/${USERNAME}/.bashrc
 
@@ -60,12 +56,12 @@ RUN echo VARIANT_ID=container >> /etc/os-release
 USER ${USERNAME}
 WORKDIR /home/${USERNAME}
 
-ENV IDF_TOOLS_PATH=/home/${USERNAME}/.espressif
+ENV AIM62_SDK_PATH=/home/${USERNAME}/aithinker_Ai-M6X_SDK
 
-# Fetch ESP-IDF and install the toolchain/tools scoped to the ESP32-C3 target
-RUN git clone -b v5.3.1 --recursive https://github.com/espressif/esp-idf.git /home/${USERNAME}/esp-idf && \
-    /home/${USERNAME}/esp-idf/install.sh esp32c3
-
-RUN echo ". /home/${USERNAME}/esp-idf/export.sh > /dev/null 2>&1" >> /home/${USERNAME}/.bashrc
+# Fetch the Ai-Thinker M6X SDK and its tools submodules (bundled cross toolchain, etc.)
+RUN git clone https://github.com/Ai-Thinker-Open/aithinker_Ai-M6X_SDK.git ${AIM62_SDK_PATH} && \
+    cd ${AIM62_SDK_PATH}/tools && \
+    git submodule init && \
+    git submodule update .
 
 CMD ["/bin/bash"]

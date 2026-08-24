@@ -7,7 +7,7 @@ into an RTEMS checkout and built with `waf` yet. Treat every register offset
 and bit position below as "needs a second pair of eyes" until that happens.
 
 This directory is not part of the RTEMS build itself - RTEMS isn't vendored
-in this repo (`Dockerfile.esp32c3-rtems` clones `github.com/RTEMS/rtems` at
+in this repo (`Containerfile.esp32c3-rtems` clones `github.com/RTEMS/rtems` at
 image-build time). The files here mirror their intended final path in the
 RTEMS tree (`bsps/riscv/esp32/...`) so they're easy to diff/copy into a real
 checkout for testing, and eventually into an upstream merge request the same
@@ -85,7 +85,7 @@ while drafting this) and cross-referenced against Espressif's public
 
 To actually build this into the `esp32c3db` BSP, inside an RTEMS checkout
 (e.g. the container's `~/kernel`, cloned fresh each image build per
-`Dockerfile.esp32c3-rtems` - it isn't persisted, so these changes need to
+`Containerfile.esp32c3-rtems` - it isn't persisted, so these changes need to
 land upstream or be re-applied per build until then):
 
 1. Copy `bsps/riscv/esp32/gpio/gpio.c` and
@@ -126,7 +126,7 @@ land upstream or be re-applied per build until then):
 5. Rebuild: `./waf configure --prefix=$RTEMS_ROOT --rtems-bsps=riscv/esp32c3db && ./waf && ./waf install`
    (`--prefix=$RTEMS_ROOT` matters - a bare `./waf configure` without it
    resets the install prefix to waf's default `/opt/rtems`, which
-   `builder` can't write to; `Dockerfile.esp32c3-rtems`'s original
+   `builder` can't write to; `Containerfile.esp32c3-rtems`'s original
    configure call passes it explicitly for this reason).
 6. An application using it just needs `#include <bsp/gpio.h>` (the
    `BSP_GPIO_PIN_COUNT`/`BSP_GPIO_PINS_PER_BANK` macros come along for free

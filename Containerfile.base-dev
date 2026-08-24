@@ -1,25 +1,25 @@
 # Common base image for this repo's per-board development containers.
 #
 # Not meant to be run standalone (no toolchain lives here) - it's a shared
-# layer other Dockerfiles can build on with `FROM localhost/mcu-exp-base-dev`
-# (after `podman build -t mcu-exp-base-dev -f Dockerfile.base-dev .`) to drop
+# layer other Containerfiles can build on with `FROM localhost/mcu-exp-base-dev`
+# (after `podman build -t mcu-exp-base-dev -f Containerfile.base-dev .`) to drop
 # the boilerplate they'd otherwise each repeat.
 #
 # Contents are the strict intersection - same package, same name - of the
-# `apt-get install` lists across the six Dockerfiles in this repo that already
+# `apt-get install` lists across the six Containerfiles in this repo that already
 # share this exact structure (ubuntu:24.04 base, ARG USERNAME/USER_UID/USER_GID,
-# sudo+dialout user, passwordless sudo): Dockerfile.aim62, Dockerfile.aim62-zephyr,
-# Dockerfile.esp32c3, Dockerfile.esp32c3-rtems, Dockerfile.rp2040 and
-# Dockerfile.rtl8720dn. Dockerfile.debian and Dockerfile.ubuntu use a different,
-# fixed-"builder" user layout; Dockerfile.renode is a Renode/.NET runtime image
-# rather than a build toolchain; Dockerfile.luckfoxpico layers onto a vendor
+# sudo+dialout user, passwordless sudo): Containerfile.aim62, Containerfile.aim62-zephyr,
+# Containerfile.esp32c3, Containerfile.esp32c3-rtems, Containerfile.rp2040 and
+# Containerfile.rtl8720dn. Containerfile.debian and Containerfile.ubuntu use a different,
+# fixed-"builder" user layout; Containerfile.renode is a Renode/.NET runtime image
+# rather than a build toolchain; Containerfile.luckfoxpico layers onto a vendor
 # image instead of ubuntu:24.04 - none of those five can literally derive from
 # this base, so they're excluded from the intersection.
 #
 # Deliberately left out despite being common to most (but not literally all six)
-# of the above: cmake and ninja-build (missing from Dockerfile.esp32c3-rtems,
+# of the above: cmake and ninja-build (missing from Containerfile.esp32c3-rtems,
 # which builds via RTEMS's waf/RSB instead), python3-pip/python3-venv/unzip
-# (missing from Dockerfile.rp2040), and gdb-multiarch (Dockerfile.esp32c3 installs
+# (missing from Containerfile.rp2040), and gdb-multiarch (Containerfile.esp32c3 installs
 # plain "gdb" instead). Each board container still installs whichever of these -
 # and its own toolchain-specific packages - it actually needs.
 FROM ubuntu:24.04
@@ -31,7 +31,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Tell dpkg to skip unpacking docs/man/locale data for every package installed
 # from here on - this file persists in the image, so it also shrinks whatever
-# a child Dockerfile (FROM this image) installs on top, not just the packages
+# a child Containerfile (FROM this image) installs on top, not just the packages
 # below.
 RUN mkdir -p /etc/dpkg/dpkg.cfg.d && \
     { \

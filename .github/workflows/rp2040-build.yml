@@ -5,12 +5,12 @@ on:
     branches:
       - main
     paths:
-      - "Dockerfile.rp2040"
+      - "Containerfile.rp2040"
       - "compose.yaml"
       - ".github/workflows/rp2040-build.yml"
   pull_request:
     paths:
-      - "Dockerfile.rp2040"
+      - "Containerfile.rp2040"
       - "compose.yaml"
       - ".github/workflows/rp2040-build.yml"
   workflow_dispatch: {}
@@ -29,7 +29,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: Dockerfile.rp2040
+          file: Containerfile.rp2040
           push: false
           load: true
           tags: rp2040-dev:ci
