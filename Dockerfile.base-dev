@@ -1,0 +1,71 @@
+# Common base image for this repo's per-board development containers.
+#
+# Not meant to be run standalone (no toolchain lives here) - it's a shared
+# layer other Dockerfiles can build on with `FROM localhost/mcu-exp-base-dev`
+# (after `podman build -t mcu-exp-base-dev -f Dockerfile.base-dev .`) to drop
+# the boilerplate they'd otherwise each repeat.
+#
+# Contents are the strict intersection - same package, same name - of the
+# `apt-get install` lists across the six Dockerfiles in this repo that already
+# share this exact structure (ubuntu:24.04 base, ARG USERNAME/USER_UID/USER_GID,
+# sudo+dialout user, passwordless sudo): Dockerfile.aim62, Dockerfile.aim62-zephyr,
+# Dockerfile.esp32c3, Dockerfile.esp32c3-rtems, Dockerfile.rp2040 and
+# Dockerfile.rtl8720dn. Dockerfile.debian and Dockerfile.ubuntu use a different,
+# fixed-"builder" user layout; Dockerfile.renode is a Renode/.NET runtime image
+# rather than a build toolchain; Dockerfile.luckfoxpico layers onto a vendor
+# image instead of ubuntu:24.04 - none of those five can literally derive from
+# this base, so they're excluded from the intersection.
+#
+# Deliberately left out despite being common to most (but not literally all six)
+# of the above: cmake and ninja-build (missing from Dockerfile.esp32c3-rtems,
+# which builds via RTEMS's waf/RSB instead), python3-pip/python3-venv/unzip
+# (missing from Dockerfile.rp2040), and gdb-multiarch (Dockerfile.esp32c3 installs
+# plain "gdb" instead). Each board container still installs whichever of these -
+# and its own toolchain-specific packages - it actually needs.
+FROM ubuntu:24.04
+
+LABEL com.github.containers.toolbox="true" \
+      com.github.debarshiray.toolbox="true"
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && \
+    apt-get -y upgrade && \
+    apt-get install -y \
+        build-essential \
+        git \
+        libusb-1.0-0 \
+        libusb-1.0-0-dev \
+        python3 \
+        sudo \
+        udev \
+        vim \
+        wget && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Username and UID/GID are configurable so the container's user can match the
+# host user podman maps in via userns_mode: keep-id.
+ARG USERNAME=builder
+ARG USER_UID=1000
+ARG USER_GID=${USER_UID}
+
+# ubuntu:24.04 ships a stock "ubuntu" user/group at 1000:1000; remove it so the
+# configurable UID/GID below don't collide with it.
+# Added to sudo and dialout groups (dialout for serial/USB flashing access)
+RUN userdel -r ubuntu && \
+    groupadd -g ${USER_GID} ${USERNAME} && \
+    useradd -u ${USER_UID} -g ${USER_GID} -c "MCU Developer" \
+            -G sudo,dialout -d "/home/${USERNAME}" --create-home "${USERNAME}" && \
+    export PS1="\[\033[01;34m\](podman) \[\033[00m\]\u@\h:\w\$ " >> /home/${USERNAME}/.bashrc
+
+# Allow sudo without password
+RUN echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+RUN touch /etc/localtime
+RUN echo VARIANT_ID=container >> /etc/os-release
+
+USER ${USERNAME}
+WORKDIR /home/${USERNAME}
+
+CMD ["/bin/bash"]
