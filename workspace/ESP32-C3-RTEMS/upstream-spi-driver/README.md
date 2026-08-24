@@ -1,15 +1,46 @@
 # Draft ESP32-C3 SPI driver for RTEMS's `esp32c3db` BSP
 
-**Status: builds clean, but does not work on real hardware.** Unlike when
-this was first drafted, this has now been built, integrated into the BSP,
-and run against a real ESP32-C3 (2026-08-23, driving both an ST7789 LCD
-and an SH1106 OLED - two independent devices, same result). Every single SPI transaction deadlocks the calling task forever:
+**Status: confirmed working on real hardware (2026-08-24)**, driving
+`examples/oled_1in3_sh1106_spi` end-to-end (border + scanning square
+visible on the physical screen). `examples/lcd_st7789_spi` hasn't been
+retested since the fix but shares the same driver and should benefit
+equally.
+
+## The deadlock (root-caused and fixed)
+
+Every SPI transaction previously deadlocked the calling task forever:
 `esp32c3_spi_do_chunk()`'s `SPI_POLL_WHILE` loop after setting
-`SPI_CMD_REG.usr` never exits, because that bit never self-clears, and
-`SPI_DMA_INT_RAW_REG.trans_done` (bit 12) never fires either - this is a
-genuine hardware-level stall (confirmed with a bounded retry loop
-substituted for the real unbounded one, purely for diagnosis), not a
-status-bit-misread bug or something specific to the first transaction only.
+`SPI_CMD_REG.usr` never exited, because that bit never self-cleared, and
+no SCLK/MOSI activity was ever generated - confirmed with a logic analyzer
+(a Raspberry Pi Pico running `sigrok-pico`, see
+`../../RPI2040/examples/sigrok_pico`) showing GPIO4/5 completely flat
+across multiple capture windows while CS (a plain, separately-driven GPIO)
+asserted correctly, ruling out a status-bit-misread bug in favor of the
+hardware never actually running the transaction at all.
+
+Root cause: the driver never powered on GP-SPI2's own internal
+functional/master clock domain (`SPI_CLK_GATE_REG`, offset `0xE8`) -
+distinct from (and in addition to) `SYSTEM_PERIP_CLK_EN0_REG`'s APB
+register-access clock, which register reads already confirmed was
+correctly enabled. Without `SPI_MST_CLK_ACTIVE` set, register writes to
+`CMD_REG`/`UPDATE` still worked fine over APB (which is exactly why the
+original register-dump diagnosis below didn't catch it), but the hardware
+state machine that generates SCLK edges never ran. Verified against
+Espressif's real `hal/esp32c3/include/hal/spi_ll.h`
+(`spi_ll_enable_clock()`/`spi_ll_master_init()`), which sets this exact
+register before any transaction. Fixed in `spi-regs.h`/`esp32c3-spi.c` by
+writing `SPI_CLK_EN | SPI_MST_CLK_ACTIVE` (XTAL source, matching this
+file's existing `SPI2_SOURCE_CLK_HZ` assumption) as the first hardware
+action in `spi_bus_register_esp32c3()`.
+
+Getting a byte-perfect SPI trace wasn't the end of the story for
+`examples/oled_1in3_sh1106_spi` specifically - see that file's own STATUS
+comment for two further, unrelated bugs (a wrong SSD1306-vs-SH1106
+charge-pump command, and an inverted-logic GPIO bug that held the OLED's
+RST line permanently asserted) found by cross-comparing signals against a
+known-working ESP-IDF port on the same hardware.
+
+## Earlier diagnosis, preserved for context
 
 Ruled out via live register reads against the real chip, each cross-checked
 against Espressif's actual `esp32c3` headers (`spi_reg.h`, `spi_struct.h`,
@@ -27,7 +58,8 @@ memory:
   (`SYSTEM_PERIP_CLK_EN0_REG`/`SYSTEM_PERIP_RST_EN0_REG`, bit 6 in each,
   base `0x600c0000`) were already in the correct state (clocked, not held
   in reset) before this driver ever touches SPI2 - not a missing
-  clock-gating step.
+  clock-gating step. (This remains true - it's a *different* clock-gating
+  register, `SPI_CLK_GATE_REG`, that was the actual missing step.)
 
 Also tried: the "Testing plan" section's own suggested first hardware
 test - wiring MOSI (GPIO5) directly to MISO (GPIO3) and sending a known
@@ -37,22 +69,7 @@ is a shared TX/RX buffer, pre-loaded with the TX byte before the
 transaction starts. A live register dump across the whole (bounded, for
 diagnosis) wait showed `SPI_W0_REG` frozen at the exact TX value the
 entire time, for every command byte tried, not just this one - meaning
-nothing ever touched it, not that a loopback exchange occurred. This
-actually strengthens the "hardware genuinely never runs the transaction"
-conclusion rather than weakening it: real bit-shifting, even a failed or
-partial exchange, would be expected to change the register's contents at
-some point.
-
-Not yet checked: an oscilloscope/logic analyzer on SCLK/MOSI/CS, which
-would show directly whether the GPIO-matrix routing is actually getting a
-clock onto the pin at all, or whether the peripheral is generating clock
-edges internally but never latching completion - this needs that hardware
-to make progress, per the "Testing plan" section below, which called this
-out as necessary before trusting the driver even before this round of
-testing. Until this is root-caused, none of the examples that depend on
-this driver (`examples/lcd_st7789_spi`, `examples/oled_1in3_sh1106_spi`)
-will actually produce output on their displays, even though they build and
-run without crashing.
+nothing ever touched it, not that a loopback exchange occurred.
 
 This directory mirrors its intended final path in the RTEMS tree
 (`bsps/riscv/esp32/...`), for the same reason as `upstream-gpio-driver/`:

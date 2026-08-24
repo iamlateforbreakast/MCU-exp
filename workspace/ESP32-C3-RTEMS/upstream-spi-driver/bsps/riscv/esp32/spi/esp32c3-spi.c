@@ -64,6 +64,7 @@
 #include <dev/spi/spi.h>
 
 #include <errno.h>
+#include <rtems/counter.h>
 
 typedef struct {
   spi_bus  base;
@@ -327,6 +328,17 @@ static int esp32c3_spi_transfer(
     }
 
     esp32c3_spi_cs_assert( bus );
+    /*
+     * Unlike GP-SPI2's own hardware CS lines (used by e.g. ESP-IDF's
+     * spi_master, which times CS setup/hold relative to SCLK automatically
+     * inside the peripheral), this driver's software/GPIO CS has no
+     * enforced delay before the first clock edge - the CPU can reach
+     * SPI_USR only tens of nanoseconds after the GPIO write. Give the
+     * slave device explicit setup margin rather than assume that's enough
+     * - confirmed-correct SPI byte content on a logic analyzer doesn't
+     * prove the slave's own input timing requirements were met.
+     */
+    rtems_counter_delay_nanoseconds( 1000 );
 
     while ( remaining > 0 ) {
       size_t chunk = remaining > SPI2_MAX_BYTES_PER_TRANSACTION
@@ -351,6 +363,9 @@ static int esp32c3_spi_transfer(
     }
 
     if ( msg->cs_change || i + 1 == msg_count ) {
+      rtems_counter_delay_nanoseconds( 1000 ); /* CS hold margin - see the
+                                                 * matching comment above
+                                                 * esp32c3_spi_cs_assert() */
       esp32c3_spi_cs_deassert( bus );
     }
   }
@@ -404,6 +419,17 @@ int spi_bus_register_esp32c3(
   bus->mosi_pin = mosi_pin;
   bus->miso_pin = miso_pin;
   bus->cs_pin = cs_pin;
+
+  /*
+   * Power on the SPI module's own internal functional/master clock domain
+   * (distinct from - and in addition to - SYSTEM_PERIP_CLK_EN0_REG's APB
+   * register-access clock, which was already confirmed enabled before this
+   * driver runs). XTAL (not the 80MHz PLL) to match SPI2_SOURCE_CLK_HZ's
+   * existing 40MHz assumption above - see SPI_CLK_GATE_REG's comment in
+   * spi-regs.h for why omitting this write is what caused every SPI
+   * transaction to hang forever with zero SCLK activity.
+   */
+  SPI2_REG( SPI_CLK_GATE_REG ) = SPI_CLK_EN | SPI_MST_CLK_ACTIVE;
 
   SPI2_REG( SPI_SLAVE_REG ) = SPI_SOFT_RESET;
   SPI2_REG( SPI_SLAVE_REG ) = 0; /* master mode (SPI_SLAVE_MODE == 0) */

@@ -117,6 +117,23 @@
 #define SPI_SOFT_RESET  BSP_BIT32( 27 )
 #define SPI_SLAVE_MODE  BSP_BIT32( 26 ) /* 0 = master (this driver only supports master) */
 
+/*
+ * Distinct from (and in addition to) SYSTEM_PERIP_CLK_EN0_REG's SPI2 bit,
+ * which only gates APB register access - confirmed already correctly
+ * enabled before this driver runs (see README). This register instead
+ * gates the SPI module's own internal functional/master clock domain,
+ * i.e. the clock that actually drives the USR transaction state machine
+ * and SCLK generation. Without MST_CLK_ACTIVE set, register writes
+ * (CMD_REG, UPDATE) still work over APB, but the hardware never produces
+ * a single SCLK edge and SPI_USR never self-clears - exactly the observed
+ * hang. Matches Espressif's spi_ll_enable_clock()/spi_ll_master_init() in
+ * hal/esp32c3/include/hal/spi_ll.h.
+ */
+#define SPI_CLK_GATE_REG    0xe8
+#define SPI_MST_CLK_SEL     BSP_BIT32( 2 ) /* 1 = 80MHz PLL, 0 = XTAL */
+#define SPI_MST_CLK_ACTIVE  BSP_BIT32( 1 ) /* power on the SPI module's own clock */
+#define SPI_CLK_EN          BSP_BIT32( 0 ) /* enable the clk_gate register's functional clock */
+
 #define SPI2_MAX_BYTES_PER_TRANSACTION 64
 
 /*

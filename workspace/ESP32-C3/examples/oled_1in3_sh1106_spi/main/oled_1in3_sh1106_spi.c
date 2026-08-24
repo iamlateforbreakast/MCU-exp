@@ -110,8 +110,19 @@ static void oled_init(void)
     oled_write_cmd(0xD3); /* display offset */
     oled_write_cmd(0x00);
     oled_write_cmd(0x40); /* display start line = 0 */
-    oled_write_cmd(0xAD); /* DC-DC control (SH1106-specific charge pump) */
-    oled_write_cmd(0x8B); /* built-in DC-DC on */
+    oled_write_cmd(0x20); /* memory addressing mode (SSD1306-only; SH1106 has
+                            * no such command and ignores it, but if this
+                            * module is actually SSD1306, POR default may not
+                            * be page mode - force it explicitly instead of
+                            * assuming) */
+    oled_write_cmd(0x02); /* page addressing mode */
+    oled_write_cmd(0x8D); /* charge pump - trying SSD1306's command/value
+                            * (0x8D/0x14) instead of SH1106's (0xAD/0x8B) as
+                            * an experiment: stable-but-scrambled output with
+                            * verified-correct wiring/power points at wrong
+                            * RAM addressing from a charge-pump/addressing
+                            * mismatch, not a wiring fault. */
+    oled_write_cmd(0x14);
     oled_write_cmd(0xA1); /* segment remap - see file header re: unverified */
     oled_write_cmd(0xC8); /* COM output scan direction reversed - see file header */
     oled_write_cmd(0xDA); /* COM pins hardware configuration */

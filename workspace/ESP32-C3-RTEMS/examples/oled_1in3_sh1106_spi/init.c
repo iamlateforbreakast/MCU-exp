@@ -20,14 +20,30 @@
  *   SCL -> GPIO4 (SCK)   SI -> GPIO5 (MOSI)   RSE -> GPIO6 (RST)
  *   RS  -> GPIO7 (DC)    CS -> GPIO10
  *
- * STATUS: builds against real hardware once the SPI driver is integrated
- * per ../../upstream-spi-driver/README.md's "Integration steps" (same
- * not-persisted-in-the-image caveat as the GPIO driver - see
- * ../../ESP32-C3-RTEMS.md) - confirmed 2026-08-23, but it hangs forever on
- * the very first oled_write_cmd() call and never proceeds. The SPI driver
- * itself deadlocks in an unbounded poll loop on every transaction (see
- * that README's status section for what's been ruled out) - this is
- * downstream of that bug, not a problem in this file.
+ * STATUS: confirmed working on real hardware (2026-08-24) - border and
+ * scanning square both visible on the physical screen. Three independent
+ * bugs were found and fixed to get here, none of them wiring:
+ *
+ * 1. The SPI driver itself deadlocked forever on the first transaction
+ *    (see ../../upstream-spi-driver/README.md) - missing SPI_CLK_GATE_REG
+ *    setup, fixed there.
+ * 2. This module is actually SSD1306-compatible, not SH1106 as assumed -
+ *    needed SSD1306's charge-pump command (0x8D/0x14, not SH1106's
+ *    0xAD/0x8B) and an explicit page-addressing-mode command (0x20, 0x02),
+ *    confirmed by cross-testing against a known-working ESP-IDF port of
+ *    this same file on the same hardware (../../../ESP32-C3/examples/
+ *    oled_1in3_sh1106_spi). Without it: correct-looking SPI traffic (byte-
+ *    verified on a logic analyzer) but a stable, scrambled image - real
+ *    communication landing in the wrong RAM addresses.
+ * 3. Both rtems_gpio_request_pin() calls below passed logic_invert=true,
+ *    which inverts rtems_gpio_set()/clear() - so oled_reset()'s "pulse
+ *    RST low, then release high" sequence actually drove it high then low,
+ *    leaving the controller permanently held in hardware reset (and
+ *    silently flipping DC's command/data polarity the whole time). Found
+ *    via a logic analyzer comparison against the known-working ESP-IDF
+ *    port, which showed RST idling high there and stuck low here with
+ *    identical wiring. Fixed by passing false, matching gpio_led_blink's
+ *    convention.
  */
 
 #include <rtems.h>
@@ -95,9 +111,21 @@ static void oled_write_cmd( uint8_t cmd )
   rtems_gpio_set( DC_PIN ); /* back to data mode */
 }
 
+/* Split into separate <=64-byte transfers (each its own CS cycle) instead
+ * of one spi_xfer() call, to test whether the ~56us clock gap the RTEMS
+ * SPI driver's internal 64-byte hardware-buffer chunking leaves *within* a
+ * single CS-held-low session (confirmed via logic analyzer, 2026-08-24) is
+ * what's corrupting page-data writes - unlike ESP-IDF's DMA-based single
+ * burst, which has no such gap. */
 static void oled_write_data( const uint8_t *buf, size_t len )
 {
-  spi_xfer( buf, len );
+  while ( len > 0 ) {
+    size_t chunk = len > 64 ? 64 : len;
+
+    spi_xfer( buf, chunk );
+    buf += chunk;
+    len -= chunk;
+  }
 }
 
 static void oled_reset( void )
@@ -120,8 +148,23 @@ static void oled_init( void )
   oled_write_cmd( 0xD3 ); /* display offset */
   oled_write_cmd( 0x00 );
   oled_write_cmd( 0x40 ); /* display start line = 0 */
-  oled_write_cmd( 0xAD ); /* DC-DC control (SH1106-specific charge pump) */
-  oled_write_cmd( 0x8B ); /* built-in DC-DC on */
+  oled_write_cmd( 0x20 ); /* memory addressing mode (SSD1306-only; SH1106
+                            * has no such command and ignores it) - force
+                            * page mode explicitly rather than assume it's
+                            * the power-on default */
+  oled_write_cmd( 0x02 ); /* page addressing mode */
+  oled_write_cmd( 0x8D ); /* charge pump - confirmed on real hardware
+                            * (2026-08-24, via the known-working ESP-IDF
+                            * port) that this module needs SSD1306's
+                            * command/value (0x8D/0x14), not SH1106's
+                            * (0xAD/0x8B) - it's actually SSD1306-compatible
+                            * despite the "SH1106" assumption in this file's
+                            * header. Without this, output was a stable but
+                            * scrambled image (real communication, wrong RAM
+                            * addressing from the missing/wrong charge-pump
+                            * and addressing-mode setup), not a wiring
+                            * fault. */
+  oled_write_cmd( 0x14 );
   oled_write_cmd( 0xA1 ); /* segment remap - see file header re: unverified */
   oled_write_cmd( 0xC8 ); /* COM output scan direction reversed - see file header */
   oled_write_cmd( 0xDA ); /* COM pins hardware configuration */
@@ -231,10 +274,19 @@ rtems_task Init( rtems_task_argument ignored )
   sc = rtems_gpio_initialize();
   fatal_if_failed( sc, "rtems_gpio_initialize" );
 
-  sc = rtems_gpio_request_pin( RST_PIN, DIGITAL_OUTPUT, false, true, NULL );
+  /* logic_invert must be false here, not true - confirmed on real hardware
+   * (2026-08-24) that passing true (as this file previously did) inverts
+   * rtems_gpio_set()/clear(), so oled_reset()'s intended "pulse low, then
+   * release high" sequence actually drove RST high then low, leaving the
+   * controller permanently held in hardware reset - display stayed blank
+   * despite byte-perfect SPI traffic, since a chip in reset can't respond
+   * to anything. Also silently inverted DC's command/data polarity the
+   * whole time. See gpio_led_blink/init.c's request_pin calls (false,
+   * false) for the correct, working convention. */
+  sc = rtems_gpio_request_pin( RST_PIN, DIGITAL_OUTPUT, false, false, NULL );
   fatal_if_failed( sc, "rtems_gpio_request_pin(RST)" );
 
-  sc = rtems_gpio_request_pin( DC_PIN, DIGITAL_OUTPUT, false, true, NULL );
+  sc = rtems_gpio_request_pin( DC_PIN, DIGITAL_OUTPUT, false, false, NULL );
   fatal_if_failed( sc, "rtems_gpio_request_pin(DC)" );
 
   rv = spi_bus_register_esp32c3( "/dev/spi0", SCK_PIN, MOSI_PIN, MISO_PIN, CS_PIN );
