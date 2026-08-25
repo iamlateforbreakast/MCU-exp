@@ -59,14 +59,18 @@ PHY calibration blob (`esp-phy-lib`, fetched like `libbtdm_app.a`)
 supplies the rest of PHY. A full test link (`bt.o` + both closed blobs +
 all 20 support objects + the ROM fragment) leaves **99 undefined symbols,
 almost all libgcc/libm/newlib runtime helpers** a real executable link
-resolves automatically. Not linked into an actual RTEMS application yet,
-and no NimBLE host source vendored - `vendor/README.md`'s "Not vendored /
-still open" has the precise remaining list, including a correction: the
-`_bt_*_start`/`_end`
-symbols bt.c needs turned out to be IDF's own build-time linker-fragment
-generator (`ldgen`) output, not ROM addresses - real linker-script
-surgery against the BSP's own script, not
-yet started.
+resolves automatically. **BSP linker-script section placement done and
+validated with a real link too** (`linker-section-patch/`): the 8
+`_bt_*`/`_bt_controller_*` symbols (real IDF's `ldgen` tool output,
+untangled by reading `linker_common.lf`/`linker_rw_bt_controller.lf` -
+"controller" in the name means the closed blob, not `bt.c`) plus a
+second, broader gap the first real link attempt surfaced -
+`.iram1.*`/`.dram1.*` sections (from `IRAM_ATTR`/`DRAM_ATTR`, used
+throughout the vendored code) aren't handled by this BSP's linker script
+at all and overflowed its `.unexpected_sections` safety net by ~30KB.
+Not linked into a full RTEMS application yet, and no NimBLE host source
+vendored - `vendor/README.md`'s "Not vendored / still open" has the
+remaining list.
 
 This
 directory tracks integrating ESP-IDF's BLE stack directly

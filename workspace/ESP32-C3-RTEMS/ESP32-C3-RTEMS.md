@@ -128,11 +128,14 @@ executable link resolves automatically. Three "this pulls in a big
 subsystem, must be hard" assessments turned out wrong once actually
 attempted (HAL-layer register access, `esp_phy`'s NVS/wifi/sleep
 dependencies, `efuse`'s own API layer) - worth remembering before
-assuming something's out of scope. Not linked into an actual RTEMS
-application yet - no NimBLE host source, no BSP-side linker-script
-placement for `bt.c`'s own `.bss`/`.data` sections (real IDF generates
-this via its own build-time `ldgen` tool, not something replicated yet),
-and no example app - nothing BLE-related runs on hardware yet. See
+assuming something's out of scope. **BSP linker-script section placement
+also done and validated with a real link** (`upstream-bt-driver/
+linker-section-patch/`) - the 8 `_bt_*`/`_bt_controller_*` symbols real
+IDF's `ldgen` tool generates, plus a broader `.iram1.*`/`.dram1.*`
+section-handling gap the first real link attempt surfaced (used
+throughout the vendored code via `IRAM_ATTR`/`DRAM_ATTR`, not BLE-specific).
+Not linked into a full RTEMS application yet - no NimBLE host source and
+no example app - nothing BLE-related runs on hardware yet. See
 `upstream-bt-driver/vendor/README.md` for the full build recipe
 and exact remaining-work list, and `upstream-bt-driver/README.md` for the
 full mapping table, real ESP32-C3 interrupt-source numbers, and phased plan.
