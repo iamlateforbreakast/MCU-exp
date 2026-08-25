@@ -19,6 +19,13 @@ struct esp_timer {
     rtems_id       id;
     esp_timer_cb_t callback;
     void          *arg;
+    /* 0 = one-shot (esp_timer_start_once); nonzero = re-arm for another
+     * period_ticks after each fire (esp_timer_start_periodic) - RTEMS
+     * timers are inherently one-shot (confirmed this session: no built-in
+     * periodic mode), so periodic behavior is this trampoline re-calling
+     * rtems_timer_server_fire_after() on each expiry, same technique
+     * RTEMS's own docs describe for rtems_timer_reset()-based periodic use. */
+    rtems_interval period_ticks;
 };
 
 /*
@@ -52,6 +59,21 @@ static rtems_timer_service_routine esp_timer_trampoline(rtems_id id, void *arg)
     (void) id;
     esp_timer_handle_t timer = arg;
     timer->callback(timer->arg);
+    if (timer->period_ticks != 0) {
+        rtems_timer_server_fire_after(timer->id, timer->period_ticks, esp_timer_trampoline, timer);
+    }
+}
+
+static uint64_t us_to_ticks(uint64_t us)
+{
+    /* timeout_us/period_us are microseconds (esp_timer's unit); RTEMS
+     * ticks are whatever CONFIGURE_MICROSECONDS_PER_TICK resolves to
+     * (100Hz/10ms by default per Phase 1's recon) - read the real rate at
+     * runtime rather than assume it, and round up so a short period never
+     * fires early. */
+    uint32_t ticks_per_sec = rtems_clock_get_ticks_per_second();
+    uint64_t ticks = (us * ticks_per_sec + 999999ULL) / 1000000ULL;
+    return (ticks < 1) ? 1 : ticks;
 }
 
 esp_err_t esp_timer_create(const esp_timer_create_args_t *create_args, esp_timer_handle_t *out_handle)
@@ -77,8 +99,9 @@ esp_err_t esp_timer_create(const esp_timer_create_args_t *create_args, esp_timer
     if (timer == NULL) {
         return ESP_FAIL;
     }
-    timer->callback = create_args->callback;
-    timer->arg      = create_args->arg;
+    timer->callback     = create_args->callback;
+    timer->arg          = create_args->arg;
+    timer->period_ticks = 0;
 
     rtems_status_code sc = rtems_timer_create(rtems_build_name('e', 's', 'p', 't'), &timer->id);
     if (sc != RTEMS_SUCCESSFUL) {
@@ -95,14 +118,21 @@ esp_err_t esp_timer_start_once(esp_timer_handle_t timer, uint64_t timeout_us)
     if (timer == NULL) {
         return ESP_FAIL;
     }
+    timer->period_ticks = 0;
 
-    /* timeout_us is microseconds (esp_timer's unit); RTEMS ticks are
-     * whatever CONFIGURE_MICROSECONDS_PER_TICK resolves to (100Hz/10ms by
-     * default per Phase 1's recon) - read the real rate at runtime rather
-     * than assume it, and round up so a short timeout never fires early. */
-    uint32_t ticks_per_sec = rtems_clock_get_ticks_per_second();
-    uint64_t ticks64 = (timeout_us * ticks_per_sec + 999999ULL) / 1000000ULL;
-    rtems_interval ticks = (ticks64 < 1) ? 1 : (rtems_interval) ticks64;
+    rtems_status_code sc = rtems_timer_server_fire_after(
+        timer->id, (rtems_interval) us_to_ticks(timeout_us), esp_timer_trampoline, timer
+    );
+    return (sc == RTEMS_SUCCESSFUL) ? ESP_OK : ESP_FAIL;
+}
+
+esp_err_t esp_timer_start_periodic(esp_timer_handle_t timer, uint64_t period_us)
+{
+    if (timer == NULL) {
+        return ESP_FAIL;
+    }
+    rtems_interval ticks = (rtems_interval) us_to_ticks(period_us);
+    timer->period_ticks = ticks;
 
     rtems_status_code sc = rtems_timer_server_fire_after(
         timer->id, ticks, esp_timer_trampoline, timer
@@ -115,6 +145,7 @@ esp_err_t esp_timer_stop(esp_timer_handle_t timer)
     if (timer == NULL) {
         return ESP_FAIL;
     }
+    timer->period_ticks = 0; /* stop a periodic timer from re-arming itself */
     rtems_status_code sc = rtems_timer_cancel(timer->id);
     return (sc == RTEMS_SUCCESSFUL) ? ESP_OK : ESP_FAIL;
 }

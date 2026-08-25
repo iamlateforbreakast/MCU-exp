@@ -62,4 +62,17 @@ void freertos_compat_exit_critical(portMUX_TYPE *mux);
 #define portENTER_CRITICAL_ISR(mux) freertos_compat_enter_critical(mux)
 #define portEXIT_CRITICAL_ISR(mux)  freertos_compat_exit_critical(mux)
 
+/*
+ * portENTER_CRITICAL_SAFE/portEXIT_CRITICAL_SAFE - real IDF's "call this
+ * from either task or ISR context, it figures out which" variant (used by
+ * PHY init's real esp_hw_support/periph_ctrl.c, confirmed this session:
+ * wifi_bt_common_module_enable() - esp_phy_common_clock_enable()'s
+ * dependency - uses this, not the plain portENTER_CRITICAL). Since this
+ * shim's enter/exit already just disables/restores interrupts regardless
+ * of caller context (no separate ISR-context code path the way real IDF's
+ * SMP FreeRTOS has), the plain and _SAFE variants are identical here.
+ */
+#define portENTER_CRITICAL_SAFE(mux) freertos_compat_enter_critical(mux)
+#define portEXIT_CRITICAL_SAFE(mux)  freertos_compat_exit_critical(mux)
+
 #endif /* FREERTOS_COMPAT_PORTMACRO_H */

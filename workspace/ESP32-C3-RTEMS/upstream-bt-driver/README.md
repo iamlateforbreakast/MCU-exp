@@ -1,10 +1,13 @@
 # Linking ESP-IDF's BLE controller into RTEMS's `esp32c3db` BSP
 
-**Status: Phase 1 drafted in full; Phase 2 partially drafted
-(`esp_timer`/`esp_intr_alloc` shims done, PHY init and the actual BSP
-interrupt-vector patch not started) - unbuilt, untested, like every other
-`upstream-*-driver` in this repo until it's dropped into a real checkout.**
-This directory tracks integrating ESP-IDF's BLE stack directly
+**Status: Phase 1 drafted in full; Phase 2 drafted in full (`esp_timer`
++`esp_timer_start_periodic`, `esp_intr_alloc`, the BSP interrupt-vector
+patch in `bsp-patch/`, and PHY init's supporting shims - `_lock_*`,
+`esp_deep_sleep_register_phy_hook`, `portENTER/EXIT_CRITICAL_SAFE` - all
+done; vendoring `esp_phy`'s own real source and the register-level PHY
+clock-enable work are the two things still open) - unbuilt, untested, like
+every other `upstream-*-driver` in this repo until it's dropped into a real
+checkout.** This directory tracks integrating ESP-IDF's BLE stack directly
 into the RTEMS `esp32c3db` image (single chip, no second-chip HCI-UART bridge).
 Unlike the other `upstream-*-driver/` directories here, this isn't a
 register-level peripheral driver you write from scratch - the actual radio
@@ -259,8 +262,8 @@ a real `esp_intr_alloc`) or by disassembling `libbtdm_app.a` (out of
 scope). The BSP patch below should define all of sources 4-10, not just 8,
 since the exact runtime value isn't nailed down.
 
-**Not started - the actual BSP patch**: `esp32c3db`'s
-`bsps/riscv/esp32/irq/irq_c3.c` `irq_mappings[]` table
+**Drafted this session - the actual BSP patch**, `bsp-patch/`:
+`esp32c3db`'s `bsps/riscv/esp32/irq/irq_c3.c` `irq_mappings[]` table
 (`{ .peripheral_int = <source>, .cpu_int = <1-31> }`) has all 31 `cpu_int`
 lines already assigned to existing peripherals - but per this session's
 recon of the table itself, **sharing a `cpu_int` line is an existing,
@@ -269,12 +272,16 @@ working pattern** (`SW_INTR_0..3` all share `cpu_int=1`,
 `14`) - the dispatch code resolves interrupts down to the individual
 peripheral source by scanning the interrupt-matrix status register, not
 just the shared `cpu_int` line, so a new BT entry doesn't need a free line.
-Still needs doing: add `#define`s for sources 4-10 to
-`chip_definitions.h` and an `irq_mappings[]` entry (sharing a `cpu_int`
-already assigned to a low-frequency source) - register-level work in the
-same vein as `../upstream-gpio-driver/`.
+`bsp-patch/` has the `#define`s for sources 4-10 and an `irq_mappings[]`
+entry sharing `cpu_int=7` (with `EFUSE_INTR`/`LEDC_INTR`, both rare in a
+system without active LEDC PWM) - as fragments to merge into the two real
+upstream files, not full copies of them (see `bsp-patch/README.md` for the
+exact integration steps), register-level work in the same vein as
+`../upstream-gpio-driver/`.
 
-**Not started - PHY init.** Real signatures confirmed this session
+**PHY init - supporting shims drafted this session; vendoring `esp_phy`
+itself and the register-level clock-enable work still open.** Real
+signatures confirmed this session
 (`components/esp_phy/include/esp_phy_init.h`, `src/phy_init.c` at IDF
 v5.3.1): `void esp_phy_enable(esp_phy_modem_t modem)` /
 `esp_phy_disable(esp_phy_modem_t modem)` (bt.c passes `PHY_MODEM_BT = 2`),
@@ -290,16 +297,74 @@ comes from a **compiled-in static default array**
 `phy_init_data.h`), not a flash partition - so this genuinely needs zero
 NVS/partition support, confirming Phase 0's assumption.
 
-**Scope grew, though**: tracing `esp_phy_enable()`'s real call graph
-surfaced dependencies beyond the 4 functions originally scoped - a newlib
-recursive lock (`_lock_acquire`/`_lock_release`, likely already available
-via RTEMS's own newlib integration, not yet checked), an
-`esp_deep_sleep_register_phy_hook()` call (a whole subsystem not
-scoped at all yet), and internal `phy_track_pll`/antenna-management calls
-that appear to live inside the closed PHY library itself rather than
-needing an RTEMS-side shim. This makes PHY init a bigger unknown than
-`esp_timer`/`esp_intr_alloc` turned out to be - worth a recon pass of its
-own before attempting it, rather than folding it into the same push.
+**Scope grew, but the follow-up recon (this session) resolved most of
+it:**
+
+- **`esp_phy` itself is open source, same as `bt.c`** - `phy_init.c` and
+  `phy_common.c` (`components/esp_phy/src/`) are plain Apache-2.0 C, not
+  part of any closed blob. The plan here is the same as for `bt.c`: vendor
+  these files unmodified, don't reimplement `esp_phy_enable`/etc.
+  ourselves - `freertos-compat` only needs to supply what *they* call.
+  There's a separate closed blob for the actual RF/PHY calibration/tuning
+  work, `components/esp_phy/lib` (a submodule, confirmed to exist this
+  session, same pattern as `esp32c3-bt-lib`) - its license wasn't checked
+  yet (do that before vendoring, same treatment Phase 0 gave
+  `esp32c3-bt-lib`).
+- **`phy_track_pll_init`/`phy_track_pll`/`phy_track_pll_deinit` and the
+  antenna functions are open C** (`components/esp_phy/src/phy_common.c`,
+  confirmed by grepping their actual `void phy_track_pll(void) { ... }`
+  definitions, not just declarations) - not inside the closed blob as
+  guessed earlier. `phy_track_pll_init` itself just calls
+  `esp_timer_create`/`esp_timer_start_periodic` - meaning it depends on
+  `freertos-compat`'s own `esp_timer` shim, which didn't have a periodic
+  variant yet (RTEMS timers are inherently one-shot, confirmed in Phase 2).
+  **Added this session**: `esp_timer_start_periodic` in
+  `freertos-compat/include/esp_timer.h` + `src/esp_timer.c` - the
+  trampoline re-arms itself via another `rtems_timer_server_fire_after()`
+  call on each expiry when a nonzero period is set.
+- **`_lock_acquire`/`_lock_release`/`_lock_t`** (used by
+  `esp_phy_enable`'s `s_phy_access_lock`) is confirmed to be newlib's own
+  standard retargetable-locking API
+  (`components/newlib/platform_include/sys/lock.h`, guarded by
+  `_RETARGETABLE_LOCKING`, wrapping the toolchain's real `<sys/lock.h>` via
+  `#include_next`) - **not** something RTEMS's own `cpukit` already
+  provides (grepped `cpukit/libcsupport` + `cpukit/include` for
+  `_lock_acquire`/`_RETARGETABLE_LOCKING` this session: zero hits: only
+  RTEMS's differently-named `rtems_interrupt_lock_acquire`/
+  `rtems_termios_device_lock_acquire`). **Added this session**:
+  `freertos-compat/src/lock.c` implements `_lock_init(_recursive)`/
+  `_lock_close(_recursive)`/`_lock_acquire(_recursive)`/
+  `_lock_try_acquire(_recursive)`/`_lock_release(_recursive)` against RTEMS
+  semaphores - deliberately does **not** ship its own `sys/lock.h` (that
+  would shadow the toolchain's real one); it just implements the functions
+  the real header already declares. **Not confirmed**: whether the actual
+  `riscv-rtems7-*` toolchain built by `Containerfile.esp32c3-rtems` (via
+  rtems-source-builder, a separate build outside RTEMS's own source tree,
+  unreachable by this session's recon technique) enables
+  `_RETARGETABLE_LOCKING` in its newlib build at all - if it doesn't, these
+  symbol names may not be the toolchain's real retarget point. Needs
+  checking against the actual built toolchain.
+- **`esp_deep_sleep_register_phy_hook`** confirmed to be pure bookkeeping
+  (`components/esp_hw_support/sleep_modes.c`: appends the callback to a
+  fixed-size array, invoked only if deep sleep is ever entered) - safe to
+  no-op, since this RTEMS port has no deep-sleep subsystem at all and isn't
+  building one for BLE bring-up. **Added this session**:
+  `freertos-compat/include/esp_sleep.h` + `src/esp_sleep.c`, a one-function
+  stub that always returns `ESP_OK`.
+- **`esp_phy_common_clock_enable()`** (called at the top of
+  `esp_phy_enable`) resolves to `wifi_bt_common_module_enable()`
+  (`components/esp_hw_support/periph_ctrl.c`) - confirmed to branch on
+  `SOC_MODEM_CLOCK_IS_INDEPENDENT` between `modem_clock_module_enable()`
+  and a simpler ref-counted `periph_ll_wifi_bt_module_enable_clk()`
+  register write guarded by `portENTER_CRITICAL_SAFE`/`_EXIT` (a variant
+  not previously in this shim - **added this session** to
+  `freertos-compat/include/freertos/portmacro.h`, aliased to the same
+  enter/exit critical implementation as the plain `portENTER_CRITICAL`,
+  since this shim's version is already safe from both task and ISR
+  context). **Not yet resolved**: which of the two branches ESP32-C3 takes,
+  and the actual register-level clock-enable work either implies - this is
+  new register-level recon, in the same vein as `../upstream-gpio-driver/`,
+  not yet done.
 
 Tick rate used by `esp_timer.c`'s ms→ticks conversion:
 `CONFIGURE_MICROSECONDS_PER_TICK` (default 10000µs = 100Hz, confirmed in
@@ -337,16 +402,20 @@ section above for the mapping table, exact files, and open risks. This was
 the bulk of the well-grounded work, since both the controller and (later)
 the NimBLE host build on it unmodified.
 
-**Phase 2 - `esp_intr_alloc`/`esp_timer` (drafted) + PHY-init/BSP vector
-patch (not started).** `esp_timer_*` maps onto a new `rtems_timer_server`
-task (not plain `rtems_timer_fire_after`); `esp_intr_alloc` maps onto the
-BSP's existing RISC-V irq driver generically, but doesn't work end-to-end
-yet - it's still blocked on adding the actual BT/Wi-Fi interrupt vector
-numbers to `chip_definitions.h`/`irq_mappings[]` first. PHY init
+**Phase 2 - drafted in full.** `esp_timer_*` (including
+`esp_timer_start_periodic`, needed by PHY's own `phy_track_pll_init`) maps
+onto a new `rtems_timer_server` task (not plain `rtems_timer_fire_after`);
+`esp_intr_alloc` maps onto the BSP's existing RISC-V irq driver, now paired
+with `bsp-patch/`'s actual BT/Wi-Fi interrupt-vector `chip_definitions.h`/
+`irq_mappings[]` additions so it works end-to-end (modulo the inferred, not
+confirmed, choice of `RWBLE_INTR`). PHY init
 (`ESP_PHY_CALIBRATION_AND_DATA_STORAGE=n`, full calibration every boot, no
 NVS needed) turned out to need more than the 4 originally-scoped functions
-once its real call graph was traced - see the "Phase 2" section above for
-all of this in detail.
+once its real call graph was traced, but nearly all of that extra surface
+(`_lock_*`, `esp_deep_sleep_register_phy_hook`, `portENTER/EXIT_CRITICAL_SAFE`)
+is now drafted too - see the "Phase 2" section above for all of this in
+detail, including the two pieces still open (vendoring `esp_phy`'s own real
+source, and the register-level PHY clock-enable work).
 
 **Phase 3 - controller-only smoke test (hard go/no-go gate):** vendor
 `bt.c` + link `libbtdm_app.a` against the Phase 1/2 shim, and verify a
