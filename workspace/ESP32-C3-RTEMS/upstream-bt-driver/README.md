@@ -6,9 +6,10 @@ patch in `bsp-patch/`, and PHY init's supporting shims - `_lock_*`,
 `esp_deep_sleep_register_phy_hook`, `portENTER/EXIT_CRITICAL_SAFE`;
 vendoring `esp_phy`'s own real source and the register-level PHY
 clock-enable work are the two things still open there). Phase 3 (the
-hardware smoke test) has its API recon done, but hit a real new blocker
-before an actual test app could be drafted - see Phase 3 below - and can't
-be run in this sandbox regardless (no ESP32-C3 hardware).
+hardware smoke test) has its API recon done and its Kconfig-macro blocker
+resolved (`sdkconfig-compat.h`, see below) - the smoke-test app itself
+isn't drafted yet, and can't be run without real ESP32-C3 hardware
+regardless.
 
 **Build-confirmed 2026-08-25** (`esp32c3-rtems-dev` container, real
 `riscv-rtems7-gcc` against the real installed `esp32c3db` BSP headers, after
@@ -476,40 +477,56 @@ esp_err_t esp_bt_controller_init(esp_bt_controller_config_t *cfg);
 esp_err_t esp_bt_controller_enable(esp_bt_mode_t mode);
 ```
 
-**New blocker found - Kconfig-generated config surface, not just OS-API
-surface.** `esp_bt_controller_config_t`'s default-init macro
-(`BT_CONTROLLER_INIT_CONFIG_DEFAULT()`) and `bt.c` itself reference **~45
-distinct `CONFIG_*` macros** (`CONFIG_BT_CTRL_MODE_EFF`,
+**Kconfig-generated config surface blocker - resolved 2026-08-25.**
+`esp_bt_controller_config_t`'s default-init macro
+(`BT_CONTROLLER_INIT_CONFIG_DEFAULT()`) and `bt.c` itself reference
+distinct `CONFIG_*` macros (`CONFIG_BT_CTRL_MODE_EFF`,
 `CONFIG_BT_CTRL_BLE_MAX_ACT_EFF`, `CONFIG_ESP_PHY_ENABLED`,
-`CONFIG_FREERTOS_UNICORE`, etc. - grepped directly, not estimated) that a
-real ESP-IDF build gets for free from Kconfig/menuconfig, generated into
-`sdkconfig.h`. Vendoring `bt.c`/`esp_bt.h` into an RTEMS build with no
-Kconfig system at all means **none of these exist** unless something
-provides them - this is a genuinely new category of missing surface (build
-configuration, not an OS API to shim) that nothing in Phase 0-2 accounted
-for. Some are easy (simple feature-select booleans like
-`CONFIG_BT_NIMBLE_ENABLED` - define it, leave `CONFIG_BT_BLUEDROID_ENABLED`
-undefined; several like `CONFIG_ESP_COEX_ENABLED`/`CONFIG_PM_ENABLE`/
-`CONFIG_SW_COEXIST_ENABLE` can likely stay undefined entirely to collapse
-those `#ifdef`-guarded code paths away for a minimal BLE-only,
-no-coexistence, no-power-management smoke test), but each needs checking
-against IDF's real Kconfig defaults for an esp32c3+NimBLE+BLE-only
-configuration before assuming a value - not attempted this session, to
-avoid fabricating ~45 values without checking them the way every other
-number in this README has been checked. This is real, sizable follow-up
-work in its own right (a `sdkconfig-compat.h`-style header), comparable in
-scope to what `freertos-compat/` itself took - not something to fold into
-a quick pass.
+`CONFIG_FREERTOS_UNICORE`, etc.) that a real ESP-IDF build gets for free
+from Kconfig/menuconfig, generated into `sdkconfig.h`. Vendoring
+`bt.c`/`esp_bt.h` into an RTEMS build with no Kconfig system at all means
+**none of these exist** unless something provides them - a genuinely new
+category of missing surface (build configuration, not an OS API to shim)
+that nothing in Phase 0-2 accounted for.
 
-**What this session could and couldn't do:** this sandbox has no ESP32-C3
-hardware, no built RTEMS toolchain, and (per the finding above) not yet
-enough of a build-configuration surface to compile `bt.c` at all - so
-Phase 3's actual smoke-test application wasn't drafted this pass, to avoid
-writing code that couldn't actually build as described. What *was* done:
-confirming the real VHCI/controller-init API above (so the eventual
-smoke-test app's structure is grounded in real signatures, not guessed),
-and surfacing the Kconfig-surface blocker before it could silently
-undermine a drafted-but-uncompilable smoke test. The actual go/no-go
+**`sdkconfig-compat.h`** (this directory) now supplies all of them, for a
+minimal ESP32-C3 + NimBLE + BLE-only + no-coexistence + no-power-management
+profile - the same one this section originally proposed. Resolved by
+sparse-cloning the real `github.com/espressif/esp-idf` at the pinned
+**v5.3.1** tag (real internet access, unlike the sandbox that drafted the
+original ~45 estimate) and reading the actual Kconfig files, not
+guessing - each macro in the header cites the exact `Kconfig`/`Kconfig.in`
+file and line that produced its value. Two real surprises fell out of
+that recon, not visible from `bt.c`'s call sites alone:
+- The true count is **43, not ~45** - `CONFIG_BTDM_CONTROLLER_MODEM_SLEEP`
+  (part of the original grep-based estimate) only ever appears inside a
+  comment in `esp_bt.h`, never in a real `#if`/`#ifdef`.
+- **`CONFIG_MAC_BB_PD`, `CONFIG_SW_COEXIST_ENABLE`, and their dead parent
+  `CONFIG_BT_CTRL_HW_CCA`, are not real Kconfig options anywhere in
+  v5.3.1's source tree at all** - a real stock ESP-IDF build for esp32c3
+  never defines them either, so the `#if` blocks in `bt.c` guarded by them
+  are permanently dead code in this IDF version (likely uncleaned
+  leftovers from an earlier chip generation), not something this shim was
+  missing.
+
+See `sdkconfig-compat.h`'s own header comment for the full per-macro
+citation table, including the one deliberate deviation from a real
+build's default (`CONFIG_ESP_COEX_ENABLED` really defaults to `y` on
+esp32c3, overridden to undefined here to avoid vendoring the `esp_coex`
+component for a minimal smoke test).
+
+**What the original session could and couldn't do:** that pass's sandbox
+had no ESP32-C3 hardware, no built RTEMS toolchain, and no internet access
+to check real Kconfig defaults - so Phase 3's actual smoke-test
+application wasn't drafted then, to avoid writing code that couldn't
+actually build as described. What *was* done: confirming the real
+VHCI/controller-init API above (so the eventual smoke-test app's structure
+is grounded in real signatures, not guessed), and surfacing the
+Kconfig-surface blocker before it could silently undermine a
+drafted-but-uncompilable smoke test - now resolved by `sdkconfig-compat.h`
+above. `bt.c`/NimBLE source and `libbtdm_app.a` still aren't vendored into
+this repo, so Phase 3's smoke-test app itself still isn't drafted - that's
+the next real step, not a blocker anymore. The actual go/no-go
 hardware test - and everything after it (Phase 4/5) - stays exactly what
 it always was: something only real hardware and a real RTEMS checkout can
 verify, not something this environment can simulate or claim.

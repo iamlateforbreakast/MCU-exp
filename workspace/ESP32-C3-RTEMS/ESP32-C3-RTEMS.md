@@ -117,10 +117,14 @@ toolchain/BSP headers - `esp_timer.c` and `lock.c` needed a missing
 replacing it. There is still no vendored `bt.c`/NimBLE source,
 no fetched `libbtdm_app.a`, and no example app, so nothing BLE-related can
 actually build or run on hardware yet. Phase 3 (the controller-only hardware
-smoke test) has its API recon done but hit a real blocker first - vendoring
-`bt.c` needs ~45 Kconfig-generated `CONFIG_*` macros a real ESP-IDF build
-gets for free from menuconfig, which nothing before this point accounted
-for - and can't actually run without real ESP32-C3 hardware regardless. See
+smoke test) has its API recon done, and its Kconfig-macro blocker is now
+resolved too: `bt.c` needs 43 Kconfig-generated `CONFIG_*` macros a real
+ESP-IDF build gets for free from menuconfig (not ~45 - two of the
+originally-estimated names turned out not to be real symbols at all), now
+supplied by `upstream-bt-driver/sdkconfig-compat.h`, each value confirmed
+against real ESP-IDF v5.3.1 Kconfig source. Still can't actually run
+without real ESP32-C3 hardware, and `bt.c`/NimBLE/the blob still aren't
+vendored in, so Phase 3's smoke-test app itself isn't drafted yet. See
 `upstream-bt-driver/README.md` for the full mapping table, real ESP32-C3
 interrupt-source numbers, and phased plan.
 
