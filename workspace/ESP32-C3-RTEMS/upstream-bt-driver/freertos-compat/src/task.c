@@ -154,3 +154,8 @@ void vPortYield(void)
 {
     rtems_task_wake_after(RTEMS_YIELD_PROCESSOR);
 }
+
+void vTaskDelay(TickType_t xTicksToWait)
+{
+    rtems_task_wake_after((rtems_interval) xTicksToWait);
+}

@@ -1,19 +1,36 @@
 # Vendored ESP-IDF source (Apache-2.0)
 
-**Status (2026-08-26): `bt.c` plus 13 real support files, including the
-entire `esp_phy` subsystem, are vendored and compile clean** against the
-real `riscv-rtems7-gcc` + installed `esp32c3db` BSP + `freertos-compat`
-shim + `sdkconfig-compat.h`, in `esp32c3-rtems-dev`. A real test-link of
-everything (`bt.o` + the fetched `libbtdm_app.a` + the fetched closed PHY
-calibration lib `libphy.a` + all 13 support objects +
+**Status (2026-08-26): `bt.c` plus 20 real support files - the entire
+`esp_phy` subsystem AND the `efuse` component - are vendored and compile
+clean** against the real `riscv-rtems7-gcc` + installed `esp32c3db` BSP +
+`freertos-compat` shim + `sdkconfig-compat.h`, in `esp32c3-rtems-dev`. A
+real test-link of everything (`bt.o` + the fetched `libbtdm_app.a` + the
+fetched closed PHY calibration lib `libphy.a` + all 20 support objects +
 `../rom-linker-patch/btdm-rom-symbols.ld`, `riscv-rtems7-ld -r`) leaves
-**~100 undefined symbols, almost all of which are libgcc/libm/newlib
+**99 undefined symbols, almost all of which are libgcc/libm/newlib
 runtime helpers** (soft-float arithmetic, 64-bit division, `atan`,
 `sprintf`, atomics - not resolved by a raw `ld -r` partial link, but
 automatically supplied by a real `gcc`-driven executable link) or
 `freertos-compat`'s own exports (real, just not combined into this
 particular test link). The genuinely open items remaining are small and
 enumerated exactly in "Linking" and "Not vendored / still open" below.
+
+**`efuse` component vendored too, same session**: `mac_addr.c`'s last
+real need (`ESP_EFUSE_MAC`, `esp_efuse_read_field_blob`,
+`esp_efuse_get_field_size`) pulled in 8 more files -
+`efuse/src/{esp_efuse_api,esp_efuse_utility,esp_efuse_fields}.c` (generic)
++ `efuse/esp32c3/{esp_efuse_table,esp_efuse_utility,esp_efuse_fields}.c`
+(chip-specific) + `efuse/src/efuse_controller/keys/with_key_purposes/
+esp_efuse_api_key.c` (ESP32-C3 has `SOC_EFUSE_KEY_PURPOSE_FIELD`, checked
+against real `soc_caps.h` rather than guessed which of the 3 CMake-selected
+variants applies) + `hal/{,esp32c3/}efuse_hal.c` - all real, open, all
+compile clean. Two files sharing a name in different directories
+(`hal/efuse_hal.c` and `hal/esp32c3/efuse_hal.c`) turned out to be
+complementary, not competing (confirmed by reading both fully after nm
+briefly suggested a collision that was actually a mistake in this
+session's own test-object naming, not the vendored source) - same
+generic-plus-chip-specific pattern as `bt.c`/`esp_efuse_utility.h`
+elsewhere in this vendoring.
 
 **Major correction from the previous session's assessment**: `esp_phy`'s
 own source (`phy_init.c`, 1160 lines) was flagged as "too large to vendor
@@ -307,15 +324,22 @@ items remain:
   note), the third is an L2CAP function from the NimBLE/Bluedroid host
   (Phase 4, not vendored yet).
 
-- **`ESP_EFUSE_MAC`, `ESP_EFUSE_USER_DATA_MAC_CUSTOM`,
-  `esp_efuse_get_field_size`, `esp_efuse_read_field_blob`** - the one
-  real remaining piece `mac_addr.c` itself needs: the `efuse` component's
-  actual read implementation (`components/efuse/src/esp_efuse_api.c`, 355
-  lines, real and open). Given how often "pulls in a big subsystem" turned
-  out to be a false alarm this session (`periph_module_*`'s HAL layer,
-  `esp_phy`'s NVS/wifi/sleep dependencies), this is worth checking with the
-  same discovery-loop technique before assuming it's hard - not attempted
-  yet for time reasons, not because it was assessed as complex.
+- **RESOLVED this session**: `ESP_EFUSE_MAC`/`ESP_EFUSE_USER_DATA_MAC_CUSTOM`/
+  `esp_efuse_get_field_size`/`esp_efuse_read_field_blob` - the entire
+  `efuse` component (8 files) is now vendored and compiling clean, see
+  status header above. Real build-recipe additions needed: two more
+  `#include_next` chip-overlay pairs (`efuse/private_include/
+  esp_efuse_utility.h` and its `esp32c3/private_include/` counterpart,
+  same mechanism as `hal/efuse_hal.h` before it - generic path must
+  precede chip-specific in `-I` order), `-include inttypes.h` (another
+  real-upstream-file-doesn't-include-what-it-uses gap, `PRIx32` used
+  without it), a new `vTaskDelay` in `freertos-compat` (real signature,
+  RTEMS-backed), `ESP_EARLY_LOG*` macros added to `esp_log.h`, and one new
+  `sdkconfig-compat.h` macro: `CONFIG_IDF_TARGET_ARCH_RISCV` - without it,
+  `esp_fault.h`'s architecture-select macro fed Xtensa `ill.n` assembly to
+  the RISC-V assembler (a real compile failure, not a shim gap - the file
+  already branches correctly on this exact macro, this repo just hadn't
+  defined it yet).
 
 - **`_bt_data_start`/`_bt_data_end`/`_bt_bss_start`/`_bt_bss_end`/
   `_bt_controller_data_start`/`_bt_controller_data_end`/

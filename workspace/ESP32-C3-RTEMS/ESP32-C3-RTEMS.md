@@ -115,28 +115,25 @@ took. The Kconfig-macro gap Phase 3 originally hit is resolved too:
 `bt.c` needs (not ~45 - two of the original estimate weren't real symbols),
 each confirmed against real ESP-IDF v5.3.1 Kconfig source.
 
-**`bt.c` plus the entire `esp_phy` subsystem are now vendored and compile
-clean (2026-08-26)** - `upstream-bt-driver/vendor/` has `bt.c`, 13 real
-support files (`esp_clk.c`/`hw_random.c`/`mac_addr.c`/`periph_ctrl.c`/
-`rtc_clk.c`/`rtc_time.c`/`esp_gpio_reserve.c`/`phy_init.c`/`phy_common.c`/
-`phy_init_data.c`/`phy_callback.c`/`lib_printf.c`), and ~50 transitively
-required headers. Two closed Espressif blobs (`libbtdm_app.a` and the PHY
-calibration `libphy.a`) were fetched (not committed - large binaries,
-documented fetch commits instead) and `nm`-cross-checked; a validated
-linker fragment (`upstream-bt-driver/rom-linker-patch/`) supplies the ROM
-addresses both blobs need. A full test-link of everything leaves ~100
+**`bt.c` plus the entire `esp_phy` AND `efuse` subsystems are now vendored
+and compile clean (2026-08-26)** - `upstream-bt-driver/vendor/` has
+`bt.c`, 20 real support files, and ~60 transitively required headers.
+Two closed Espressif blobs (`libbtdm_app.a` and the PHY calibration
+`libphy.a`) were fetched (not committed - large binaries, documented
+fetch commits instead) and `nm`-cross-checked; a validated linker
+fragment (`upstream-bt-driver/rom-linker-patch/`) supplies the ROM
+addresses both blobs need. A full test-link of everything leaves 99
 undefined symbols, almost all libgcc/libm/newlib runtime helpers a real
-executable link resolves automatically. Two "this pulls in a big
+executable link resolves automatically. Three "this pulls in a big
 subsystem, must be hard" assessments turned out wrong once actually
-attempted (HAL-layer register access, `esp_phy`'s NVS/efuse/sleep
-dependencies) - worth remembering before assuming something's out of
-scope. Not linked into an actual RTEMS application yet - no NimBLE host
-source, no efuse subsystem (small remaining piece `mac_addr.c` needs), no
-BSP-side linker-script placement for `bt.c`'s own `.bss`/`.data` sections
-(real IDF generates this via its own build-time `ldgen` tool, not
-something replicated yet), and no example app - nothing BLE-related runs
-on hardware yet. See `upstream-bt-driver/vendor/README.md` for the full
-build recipe
+attempted (HAL-layer register access, `esp_phy`'s NVS/wifi/sleep
+dependencies, `efuse`'s own API layer) - worth remembering before
+assuming something's out of scope. Not linked into an actual RTEMS
+application yet - no NimBLE host source, no BSP-side linker-script
+placement for `bt.c`'s own `.bss`/`.data` sections (real IDF generates
+this via its own build-time `ldgen` tool, not something replicated yet),
+and no example app - nothing BLE-related runs on hardware yet. See
+`upstream-bt-driver/vendor/README.md` for the full build recipe
 and exact remaining-work list, and `upstream-bt-driver/README.md` for the
 full mapping table, real ESP32-C3 interrupt-source numbers, and phased plan.
 

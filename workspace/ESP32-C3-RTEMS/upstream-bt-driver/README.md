@@ -49,19 +49,20 @@ time found three more real, confirmed bugs in `freertos-compat`
 `rtems_id`, plus several missing FreeRTOS/port functions) - all fixed.
 `libbtdm_app.a` (the closed blob) was fetched and real `nm`-cross-checked
 against `bt.o`'s needs, now written up as a real, validated linker
-fragment (`rom-linker-patch/btdm-rom-symbols.ld`). **13 real support
-files vendored and compiling clean, including the entire `esp_phy`
-subsystem (2026-08-26)**: `esp_clk.c`/`hw_random.c`/`mac_addr.c`/
-`periph_ctrl.c`/`rtc_clk.c`/`rtc_time.c`/`esp_gpio_reserve.c` plus
-`esp_phy`'s `phy_init.c`/`phy_common.c`/`phy_init_data.c`/
-`phy_callback.c`/`lib_printf.c` - the closed PHY calibration blob
-(`esp-phy-lib`, fetched like `libbtdm_app.a`) supplies the rest. A full
-test link (`bt.o` + both closed blobs + all 13 support objects + the ROM
-fragment) leaves **~100 undefined symbols, almost all libgcc/libm/newlib
-runtime helpers** a real executable link resolves automatically. Not
-linked into an actual RTEMS application yet, and no NimBLE host source
-vendored - `vendor/README.md`'s "Not vendored / still open" has the
-precise remaining list, including a correction: the `_bt_*_start`/`_end`
+fragment (`rom-linker-patch/btdm-rom-symbols.ld`). **20 real support
+files vendored and compiling clean, including the entire `esp_phy` AND
+`efuse` subsystems (2026-08-26)**: `esp_clk.c`/`hw_random.c`/`mac_addr.c`/
+`periph_ctrl.c`/`rtc_clk.c`/`rtc_time.c`/`esp_gpio_reserve.c`, `esp_phy`'s
+`phy_init.c`/`phy_common.c`/`phy_init_data.c`/`phy_callback.c`/
+`lib_printf.c`, and `efuse`'s 8 API/utility/table/HAL files - the closed
+PHY calibration blob (`esp-phy-lib`, fetched like `libbtdm_app.a`)
+supplies the rest of PHY. A full test link (`bt.o` + both closed blobs +
+all 20 support objects + the ROM fragment) leaves **99 undefined symbols,
+almost all libgcc/libm/newlib runtime helpers** a real executable link
+resolves automatically. Not linked into an actual RTEMS application yet,
+and no NimBLE host source vendored - `vendor/README.md`'s "Not vendored /
+still open" has the precise remaining list, including a correction: the
+`_bt_*_start`/`_end`
 symbols bt.c needs turned out to be IDF's own build-time linker-fragment
 generator (`ldgen`) output, not ROM addresses - real linker-script
 surgery against the BSP's own script, not

@@ -203,6 +203,20 @@ PROVIDE ( gpio_matrix_out = 0x400005a4 );
 PROVIDE ( esp_rom_gpio_connect_out_signal = gpio_matrix_out );
 PROVIDE ( phy_get_romfuncs = 0x400018fc );
 
+/*
+ * Found needed vendoring the `efuse` component (2026-08-26). `EFUSE` is a
+ * memory-mapped register-struct global (same mechanism as `SYSTEM`/
+ * `TIMERG0`/`TIMERG1` above, `extern efuse_dev_t EFUSE;` in
+ * `soc/efuse_struct.h`), address from this repo's own already-vendored
+ * `reg_base.h`. `ets_efuse_clear_program_registers`/`_rs_calculate` are
+ * real ROM function addresses.
+ */
+PROVIDE ( EFUSE = 0x60008800 );
+PROVIDE ( ets_efuse_clear_program_registers = 0x400006d8 );
+PROVIDE ( ets_efuse_rs_calculate = 0x400006f0 );
+PROVIDE ( software_reset = 0x40000090 );
+PROVIDE ( esp_rom_software_reset_system = software_reset );
+
 PROVIDE ( r_bt_bb_isr = 0x40000b9c );
 PROVIDE ( r_btdm_task_post = 0x40000c14 );
 PROVIDE ( r_btdm_task_post_from_isr = 0x40000c18 );

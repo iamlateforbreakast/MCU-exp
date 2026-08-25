@@ -54,6 +54,17 @@
 #define CONFIG_IDF_TARGET_ESP32C3 1
 /* CONFIG_IDF_TARGET_ESP32S3 intentionally undefined - not our target. */
 
+/*
+ * Found needed 2026-08-26 vendoring efuse/src/esp_efuse_fields.c:
+ * `esp_fault.h`'s `_ESP_FAULT_ILLEGAL_INSTRUCTION` macro branches on this
+ * to pick RISC-V `unimp` vs Xtensa `ill.n` inline asm - without it,
+ * Xtensa asm gets fed to the RISC-V assembler (real compile failure, not
+ * a shim gap: the file itself has the correct branch, just needed the
+ * macro this repo hadn't defined yet). Root `Kconfig:64-65`:
+ * `IDF_TARGET_ESP32C3` `select`s `IDF_TARGET_ARCH_RISCV` (real, esp32c3
+ * is RISC-V, not Xtensa). */
+#define CONFIG_IDF_TARGET_ARCH_RISCV 1
+
 /* --- FreeRTOS core count ---
  * `components/freertos/Kconfig:23` (FREERTOS_UNICORE has no default of
  * its own for esp32c3, but root `Kconfig:96` `select`s it unconditionally

@@ -34,4 +34,12 @@ BaseType_t xTaskCreatePinnedToCore(
 
 void vTaskDelete(TaskHandle_t xTaskToDelete);
 
+/*
+ * `vTaskDelay` - needed by `efuse/src/esp_efuse_api.c` (vendored
+ * 2026-08-26), real signature confirmed against IDF's own `task.h`:
+ * delay the calling task for `xTicksToWait` ticks. Backed (src/task.c)
+ * by `rtems_task_wake_after()`.
+ */
+void vTaskDelay(TickType_t xTicksToWait);
+
 #endif /* FREERTOS_COMPAT_TASK_H */
