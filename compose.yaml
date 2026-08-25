@@ -61,28 +61,6 @@ services:
     volumes:
       - ${ESP32C3RTEMS_WORKSPACE_DIR:-./workspace/ESP32-C3-RTEMS}:/home/${USERNAME:-builder}/workspace:z,U
       - ${ESP32C3RTEMS_FIRMWARE_DIR:-./firmware/ESP32-C3-RTEMS}:/home/${USERNAME:-builder}/firmware:z,U
-    # Flashing is done from the host directly (esptool doesn't need the RTEMS
-    # toolchain), so the board's serial device isn't passed into this container.
-    # Uncomment if you want to flash/monitor from inside the container instead.
-    # devices:
-    #   - "/dev/ttyACM0:/dev/ttyACM0"
-    stdin_open: true
-    tty: true
-
-  esp32c3-rtems-dev:
-    build:
-      context: .
-      dockerfile: Containerfile.esp32c3-rtems
-      args:
-        USERNAME: ${USERNAME:-builder}
-        USER_UID: ${USER_UID:-1000}
-        USER_GID: ${USER_GID:-1000}
-    container_name: esp32c3-rtems-dev
-    userns_mode: "keep-id"
-    user: "${USERNAME:-builder}"
-    volumes:
-      - ${ESP32C3RTEMS_WORKSPACE_DIR:-./workspace/ESP32-C3-RTEMS}:/home/${USERNAME:-builder}/workspace:z,U
-      - ${ESP32C3RTEMS_FIRMWARE_DIR:-./firmware/ESP32-C3-RTEMS}:/home/${USERNAME:-builder}/firmware:z,U
     # Uncomment and adjust to the ESP32-C3's built-in USB-JTAG interface (or an
     # external probe) on the host in order to flash/debug it via OpenOCD.
     # devices:
