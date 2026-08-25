@@ -107,14 +107,20 @@ prebuilt `libbtdm_app.a` against a new `freertos-compat` shim, rather than a
 from-scratch register-level driver like the peripherals above. Phase 1 and
 Phase 2 (task/queue/semaphore/critical-section, `esp_timer`, `esp_intr_alloc`,
 the BT/Wi-Fi interrupt-vector BSP patch in `upstream-bt-driver/bsp-patch/`,
-and PHY init's supporting shims) are drafted - unbuilt, untested, same
-status as the other `upstream-*-driver` directories until dropped into a
-real checkout. Phase 3 (the controller-only hardware smoke test) has its
-API recon done but hit a real blocker first - vendoring `bt.c` needs ~45
-Kconfig-generated `CONFIG_*` macros a real ESP-IDF build gets for free from
-menuconfig, which nothing before this point accounted for - and can't
-actually run without real ESP32-C3 hardware regardless, which this sandbox
-doesn't have. See that doc for the full mapping table, real ESP32-C3
+and PHY init's supporting shims) are drafted. **Build-confirmed 2026-08-25**
+in `esp32c3-rtems-dev`: the BSP patch applies and builds clean, and 6 of 7
+`freertos-compat` source files compile clean against the real toolchain/BSP
+headers (one, `esp_timer.c`, needed a one-line missing-include fix, now
+applied); `lock.c` hit a confirmed real blocker - this toolchain's newlib
+doesn't expose the `_lock_t`/`_lock_acquire()` API the shim assumed, needing
+a design fix, not yet done. There is still no vendored `bt.c`/NimBLE source,
+no fetched `libbtdm_app.a`, and no example app, so nothing BLE-related can
+actually build or run on hardware yet. Phase 3 (the controller-only hardware
+smoke test) has its API recon done but hit a real blocker first - vendoring
+`bt.c` needs ~45 Kconfig-generated `CONFIG_*` macros a real ESP-IDF build
+gets for free from menuconfig, which nothing before this point accounted
+for - and can't actually run without real ESP32-C3 hardware regardless. See
+`upstream-bt-driver/README.md` for the full mapping table, real ESP32-C3
 interrupt-source numbers, and phased plan.
 
 ## Flashing and monitoring

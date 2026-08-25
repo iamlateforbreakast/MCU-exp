@@ -1,11 +1,19 @@
 # BT/BLE interrupt-vector patch for `esp32c3db`
 
-**Status: draft, unbuilt, untested** - same as every other `upstream-*-driver`
-directory in this repo until it's dropped into a real RTEMS checkout and
-built with `waf`. Not part of the RTEMS build itself; the two files here are
-fragments showing exactly what to add to two existing upstream RTEMS files,
-not full copies of them (this repo doesn't vendor RTEMS - see
-`../../ESP32-C3-RTEMS.md`).
+**Status: build-confirmed 2026-08-25.** Both fragments were applied to a real
+RTEMS `main` checkout (`~/kernel` in the `esp32c3-rtems-dev` container) -
+the seven `#define`s into `chip_definitions.h` next to the existing
+`UHCI0_INTR`/`GPIO_PROCPU_INTR` block, the `irq_mappings[]` entry into
+`irq_c3.c` sharing `cpu_int=7` with `EFUSE_INTR`/`LEDC_INTR` exactly as
+planned - and `./waf configure --prefix=$RTEMS_ROOT --rtems-bsps=riscv/esp32c3db
+&& ./waf && ./waf install` completed with no errors or warnings on
+`irq_c3.c`, producing a working `librtemsbsp.a`/installed BSP. This only
+confirms the patch integrates and builds clean; the guessed interrupt source
+(`RWBLE_INTR`) is still unconfirmed at runtime - see "Testing plan" below,
+still gated on real hardware + a vendored `bt.c`. Not part of the RTEMS
+build itself; the two files here are fragments showing exactly what to add
+to two existing upstream RTEMS files, not full copies of them (this repo
+doesn't vendor RTEMS - see `../../ESP32-C3-RTEMS.md`).
 
 Without this patch, `../freertos-compat/src/esp_intr_alloc.c`'s
 `esp_intr_alloc()` is generic and compiles fine, but fails at runtime with

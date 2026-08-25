@@ -5,12 +5,34 @@
 patch in `bsp-patch/`, and PHY init's supporting shims - `_lock_*`,
 `esp_deep_sleep_register_phy_hook`, `portENTER/EXIT_CRITICAL_SAFE`;
 vendoring `esp_phy`'s own real source and the register-level PHY
-clock-enable work are the two things still open there) - unbuilt, untested,
-like every other `upstream-*-driver` in this repo until it's dropped into a
-real checkout. Phase 3 (the hardware smoke test) has its API recon done,
-but hit a real new blocker before an actual test app could be drafted -
-see Phase 3 below - and can't be run in this sandbox regardless (no
-ESP32-C3 hardware).** This directory tracks integrating ESP-IDF's BLE stack directly
+clock-enable work are the two things still open there). Phase 3 (the
+hardware smoke test) has its API recon done, but hit a real new blocker
+before an actual test app could be drafted - see Phase 3 below - and can't
+be run in this sandbox regardless (no ESP32-C3 hardware).
+
+**Build-confirmed 2026-08-25** (`esp32c3-rtems-dev` container, real
+`riscv-rtems7-gcc` against the real installed `esp32c3db` BSP headers, after
+applying `bsp-patch/` to a fresh RTEMS `main` checkout and `./waf install`ing
+it - see `bsp-patch/README.md`): `critical.c`, `esp_intr_alloc.c`,
+`esp_sleep.c`, `queue.c`, `semphr.c`, and `task.c` all compile clean with
+`-Wall -Wextra`, no changes needed. `esp_timer.c` needed one real fix (was
+missing `#include <rtems/rtems/object.h>` for `rtems_build_name` - now
+fixed). **`lock.c` does not compile and is a confirmed real blocker**, not
+speculative: this toolchain's own `<sys/lock.h>`
+(`$RTEMS_ROOT/riscv-rtems7/include/sys/lock.h`) does not declare the
+`_lock_t`/`_lock_acquire()`-style FreeBSD/newlib-upstream retargetable-locking
+API this shim assumed it would (per the file's own "not confirmed" comment,
+now resolved). Instead it defines an entirely different mechanism -
+`_LOCK_T` typedef'd to `struct _Mutex_Control`, `__lock_acquire`/
+`__lock_release` macros wrapping RTEMS's own `_Mutex_Acquire`/`_Mutex_Release`
+directly - so `lock.c` as drafted has no toolchain declaration of `_lock_t`
+to implement against. Fixing this is a real design decision (most likely:
+the shim needs to supply its own `_lock_t` typedef/declarations rather than
+relying on the toolchain header to already have them, which changes this
+file's public contract) rather than a quick patch, and wasn't attempted
+here - PHY init (which is what actually calls `_lock_acquire`) isn't vendored
+yet either, so nothing downstream depends on this compiling today. This
+directory tracks integrating ESP-IDF's BLE stack directly
 into the RTEMS `esp32c3db` image (single chip, no second-chip HCI-UART bridge).
 Unlike the other `upstream-*-driver/` directories here, this isn't a
 register-level peripheral driver you write from scratch - the actual radio

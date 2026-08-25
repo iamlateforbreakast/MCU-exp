@@ -13,6 +13,7 @@
 #include "esp_timer.h"
 #include <rtems/rtems/timer.h>
 #include <rtems/rtems/clock.h>
+#include <rtems/rtems/object.h>
 #include <stdlib.h>
 
 struct esp_timer {
