@@ -196,4 +196,13 @@
 /* CONFIG_MAC_BB_PD intentionally omitted entirely - not a real Kconfig
  * symbol in v5.3.1; see file header. */
 
+/* --- PHY: default TX power ---
+ * Found needed 2026-08-25 when vendoring esp_phy/esp32c3/phy_init_data.c
+ * (not part of bt.c's own ~43-macro surface this file originally
+ * targeted - a new file pulled in a new Kconfig dependency, same pattern
+ * as every other addition in this file). `components/esp_phy/Kconfig`:
+ * `ESP_PHY_MAX_TX_POWER` defaults to `ESP_PHY_MAX_WIFI_TX_POWER`, which
+ * itself defaults to 20 (dBm). */
+#define CONFIG_ESP_PHY_MAX_TX_POWER 20
+
 #endif /* _FREERTOS_COMPAT_SDKCONFIG_COMPAT_H_ */

@@ -48,22 +48,23 @@ time found three more real, confirmed bugs in `freertos-compat`
 (`SemaphoreHandle_t`/`TaskHandle_t` needed to be pointer types, not bare
 `rtems_id`, plus several missing FreeRTOS/port functions) - all fixed.
 `libbtdm_app.a` (the closed blob) was fetched and real `nm`-cross-checked
-against `bt.o`'s needs (the step Phase 0/3 could only postpone until now) -
-92% of what the blob needs is confirmed satisfiable via real ESP-IDF ROM
-linker scripts, now written up as a real, validated fragment
-(`rom-linker-patch/btdm-rom-symbols.ld`). **6 more real support files
-vendored and compiling clean, same session**: `esp_clk.c`/`hw_random.c`/
-`mac_addr.c`/`periph_ctrl.c`/`rtc_clk.c`/`rtc_time.c`, resolving
-`periph_module_enable/_disable/_reset`, `esp_clk_xtal_freq`,
-`esp_clk_slowclk_cal_get`, `rtc_clk_slow_src_get`, `esp_random`, and
-`esp_read_mac` - a full test link (`bt.o` + the real blob + these 6 files +
-the ROM fragment) now leaves only **70 undefined symbols, down from 88**.
-Not linked into an actual RTEMS application yet, and still no NimBLE/
-`esp_phy` source vendored - `vendor/README.md`'s "Not vendored / still
-open" has the precise remaining list, including a correction: the
-`_bt_*_start`/`_end` symbols bt.c needs turned out to be IDF's own
-build-time linker-fragment generator (`ldgen`) output, not ROM
-addresses - real linker-script surgery against the BSP's own script, not
+against `bt.o`'s needs, now written up as a real, validated linker
+fragment (`rom-linker-patch/btdm-rom-symbols.ld`). **13 real support
+files vendored and compiling clean, including the entire `esp_phy`
+subsystem (2026-08-26)**: `esp_clk.c`/`hw_random.c`/`mac_addr.c`/
+`periph_ctrl.c`/`rtc_clk.c`/`rtc_time.c`/`esp_gpio_reserve.c` plus
+`esp_phy`'s `phy_init.c`/`phy_common.c`/`phy_init_data.c`/
+`phy_callback.c`/`lib_printf.c` - the closed PHY calibration blob
+(`esp-phy-lib`, fetched like `libbtdm_app.a`) supplies the rest. A full
+test link (`bt.o` + both closed blobs + all 13 support objects + the ROM
+fragment) leaves **~100 undefined symbols, almost all libgcc/libm/newlib
+runtime helpers** a real executable link resolves automatically. Not
+linked into an actual RTEMS application yet, and no NimBLE host source
+vendored - `vendor/README.md`'s "Not vendored / still open" has the
+precise remaining list, including a correction: the `_bt_*_start`/`_end`
+symbols bt.c needs turned out to be IDF's own build-time linker-fragment
+generator (`ldgen`) output, not ROM addresses - real linker-script
+surgery against the BSP's own script, not
 yet started.
 
 This

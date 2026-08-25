@@ -35,4 +35,16 @@ esp_err_t esp_timer_start_periodic(esp_timer_handle_t timer, uint64_t period_us)
 esp_err_t esp_timer_stop(esp_timer_handle_t timer);
 esp_err_t esp_timer_delete(esp_timer_handle_t timer);
 
+/*
+ * `esp_timer_get_time` - needed by `esp_phy/src/phy_common.c` (vendored
+ * 2026-08-25), real signature confirmed against IDF v5.3.1
+ * `components/esp_timer/include/esp_timer.h`: microseconds elapsed since
+ * boot, monotonic. Backed (src/esp_timer.c) by
+ * `rtems_clock_get_uptime()`, RTEMS's own boot-relative monotonic clock -
+ * not `rtems_clock_get_ticks_since_boot()` + a tick-rate multiply, since
+ * `get_uptime` already returns real (not tick-quantized) time and avoids
+ * assuming a fixed tick rate.
+ */
+int64_t esp_timer_get_time(void);
+
 #endif /* FREERTOS_COMPAT_ESP_TIMER_H */

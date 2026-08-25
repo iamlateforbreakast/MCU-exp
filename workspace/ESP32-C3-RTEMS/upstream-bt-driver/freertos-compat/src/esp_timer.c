@@ -13,6 +13,7 @@
 #include "esp_timer.h"
 #include <rtems/rtems/timer.h>
 #include <rtems/rtems/clock.h>
+#include <time.h>
 #include <rtems/rtems/object.h>
 #include <stdlib.h>
 
@@ -159,4 +160,11 @@ esp_err_t esp_timer_delete(esp_timer_handle_t timer)
     rtems_status_code sc = rtems_timer_delete(timer->id);
     free(timer);
     return (sc == RTEMS_SUCCESSFUL) ? ESP_OK : ESP_FAIL;
+}
+
+int64_t esp_timer_get_time(void)
+{
+    struct timespec uptime;
+    rtems_clock_get_uptime(&uptime);
+    return ((int64_t) uptime.tv_sec * 1000000) + (uptime.tv_nsec / 1000);
 }

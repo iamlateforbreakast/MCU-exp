@@ -15,5 +15,6 @@
 #define ESP_LOGW(tag, fmt, ...) printf("W (%s) " fmt "\n", tag, ##__VA_ARGS__)
 #define ESP_LOGI(tag, fmt, ...) printf("I (%s) " fmt "\n", tag, ##__VA_ARGS__)
 #define ESP_LOGD(tag, fmt, ...) printf("D (%s) " fmt "\n", tag, ##__VA_ARGS__)
+#define ESP_LOGV(tag, fmt, ...) printf("V (%s) " fmt "\n", tag, ##__VA_ARGS__)
 
 #endif /* _FREERTOS_COMPAT_ESP_LOG_H_ */

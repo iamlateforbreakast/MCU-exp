@@ -195,6 +195,14 @@ PROVIDE ( SYSTEM = 0x600c0000 );
 PROVIDE ( TIMERG0 = 0x6001F000 );
 PROVIDE ( TIMERG1 = 0x60020000 );
 
+/*
+ * Found needed after vendoring esp_phy/src/phy_common.c (2026-08-25,
+ * third pass) - real two-hop ROM alias, same citation method.
+ */
+PROVIDE ( gpio_matrix_out = 0x400005a4 );
+PROVIDE ( esp_rom_gpio_connect_out_signal = gpio_matrix_out );
+PROVIDE ( phy_get_romfuncs = 0x400018fc );
+
 PROVIDE ( r_bt_bb_isr = 0x40000b9c );
 PROVIDE ( r_btdm_task_post = 0x40000c14 );
 PROVIDE ( r_btdm_task_post_from_isr = 0x40000c18 );

@@ -12,7 +12,19 @@
 #ifndef FREERTOS_COMPAT_ESP_ERR_H
 #define FREERTOS_COMPAT_ESP_ERR_H
 
+#include <stdlib.h>
+
 typedef int esp_err_t;
+
+/*
+ * `ESP_ERROR_CHECK` - real IDF's version logs the failing expression/file/
+ * line before aborting; simplified here to just abort on failure (same
+ * fail-fast behavior, no logging machinery). `phy_init.c` (vendored
+ * 2026-08-25) is the first vendored file needing this - real, unmodified
+ * upstream `phy_init.c` doesn't `#include` anything declaring it either
+ * (same category of gap as `esp_intr_alloc.h` for `bt.c`).
+ */
+#define ESP_ERROR_CHECK(x) do { if ((x) != ESP_OK) { abort(); } } while (0)
 
 #define ESP_OK   0
 #define ESP_FAIL (-1)

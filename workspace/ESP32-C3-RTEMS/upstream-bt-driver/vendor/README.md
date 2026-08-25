@@ -1,13 +1,34 @@
 # Vendored ESP-IDF source (Apache-2.0)
 
-**Status: `bt.c` compiles clean, and 6 more real support files are now
-vendored and compile clean too (2026-08-25)**, against the real
-`riscv-rtems7-gcc` + installed `esp32c3db` BSP + `freertos-compat` shim +
-`sdkconfig-compat.h`, in `esp32c3-rtems-dev`. A real test-link of `bt.o` +
-those 6 files' objects + the fetched (not vendored) `libbtdm_app.a` +
-`../rom-linker-patch/btdm-rom-symbols.ld` (`riscv-rtems7-ld -r`, same
-session) leaves only **70 undefined symbols - down from 88** - see
-"Linking" below for the exact remaining set and what each one needs.
+**Status (2026-08-26): `bt.c` plus 13 real support files, including the
+entire `esp_phy` subsystem, are vendored and compile clean** against the
+real `riscv-rtems7-gcc` + installed `esp32c3db` BSP + `freertos-compat`
+shim + `sdkconfig-compat.h`, in `esp32c3-rtems-dev`. A real test-link of
+everything (`bt.o` + the fetched `libbtdm_app.a` + the fetched closed PHY
+calibration lib `libphy.a` + all 13 support objects +
+`../rom-linker-patch/btdm-rom-symbols.ld`, `riscv-rtems7-ld -r`) leaves
+**~100 undefined symbols, almost all of which are libgcc/libm/newlib
+runtime helpers** (soft-float arithmetic, 64-bit division, `atan`,
+`sprintf`, atomics - not resolved by a raw `ld -r` partial link, but
+automatically supplied by a real `gcc`-driven executable link) or
+`freertos-compat`'s own exports (real, just not combined into this
+particular test link). The genuinely open items remaining are small and
+enumerated exactly in "Linking" and "Not vendored / still open" below.
+
+**Major correction from the previous session's assessment**: `esp_phy`'s
+own source (`phy_init.c`, 1160 lines) was flagged as "too large to vendor
+casually" because it `#include`s `nvs.h`/`esp_efuse.h`/etc. Actually
+attempting it (2026-08-26) found every one of those to be either a narrow,
+stubbable slice (NVS calibration storage is never called when
+`CONFIG_ESP_PHY_CALIBRATION_AND_DATA_STORAGE` is off, confirmed by reading
+the call graph) or already handled. The real PHY calibration/RF-tuning
+blob (`esp-phy-lib`, Apache-2.0 "Object form" - same recon as
+`esp32c3-bt-lib`, fetched from `github.com/espressif/esp-phy-lib` at
+commit `5695f4f` (2026-07-22), not vendored into this repo for the same
+reason `libbtdm_app.a` isn't) supplies every remaining PHY symbol bt.c's
+whole call chain needs. Third time this session-family a "this pulls in a
+big subsystem, must be hard" guess was wrong once actually checked - see
+`../README.md`'s memory note.
 
 Files here mirror their real path inside an ESP-IDF checkout
 (`components/<component>/...`), copied unmodified (SPDX headers intact) from
@@ -115,6 +136,22 @@ IDF build gets some other way.
 (`#include "../sdkconfig-compat.h"`) so the real filename resolves without
 renaming the documented, cited `sdkconfig-compat.h` this repo's README
 already points to.
+
+**Per-file additions needed for the `esp_phy` files (2026-08-26), same
+"real upstream file doesn't include what it uses" pattern as
+`esp_intr_alloc.h`/`assert.h` above:**
+- `phy_init.c` and `phy_common.c`: `-include esp_attr.h -include esp_heap_caps.h`
+  (real `IRAM_ATTR`/`DRAM_ATTR` and `heap_caps_malloc`/`MALLOC_CAP_*` used
+  without including the headers that declare them).
+- `lib_printf.c`: `-include stdarg.h` (`va_start`/`va_end` used without
+  including it).
+- `esp_gpio_reserve.c`: `-DATOMIC_VAR_INIT(value)=(value)` - not an IDF gap,
+  a real C-standard one: `ATOMIC_VAR_INIT` was deprecated in C17 and
+  removed from later `<stdatomic.h>` (this toolchain's newlib doesn't
+  define it), so the real file's `= ATOMIC_VAR_INIT(x)` initializer needs
+  the macro supplied externally. Safe: real IDF's own definition is exactly
+  this trivial per the C11 spec (initializer-equivalent-to-value), not an
+  approximation.
 
 ## What compiling bt.c for the first time found in `freertos-compat`
 
@@ -235,71 +272,76 @@ these 14 with (a different `.ld` fragment not yet checked, symbols compiled
 directly into IDF's own bt component objects, or something else) isn't
 identified yet - flagged as open, not guessed at.
 
+**Extended again, 2026-08-26, after vendoring all of `esp_phy`** (see status
+header): the closed PHY calibration/RF-tuning library, `esp-phy-lib`'s
+`libphy.a` for esp32c3, was fetched (same "don't commit large binaries"
+treatment as `libbtdm_app.a`) and covers 13 of the 14 real symbols
+`phy_init.c`/`phy_common.c` need beyond the ROM/open-source surface
+(`get_phy_version_str`, `phy_close_rf`, `phy_dig_reg_backup`,
+`phy_get_rf_cal_version`, `phy_init_flag`, `phy_init_param_set`,
+`phy_wakeup_init`, `phy_xpd_tsens`, `register_chipv7_phy`, `ant_dft_cfg`,
+`ant_rx_cfg`, `ant_tx_cfg`, `phy_param_track_tot`) - the 14th,
+`phy_init_data` (the default RF calibration byte table, a `const` data
+variable not a function), turned out to be real open Apache-2.0 source
+after all: `components/esp_phy/esp32c3/phy_init_data.c`, now vendored.
+Two more ROM aliases found and added the same way (`phy_get_romfuncs`,
+`esp_rom_gpio_connect_out_signal` → `gpio_matrix_out`). Full combined test
+link (`bt.o` + `libbtdm_app.a` + `libphy.a` + all 13 support objects + the
+fragment) succeeds with ~100 undefined symbols remaining, essentially all
+libgcc/libm/newlib runtime helpers plus the items in "Not vendored /
+still open" below - none of them PHY-related anymore.
+
 ## Not vendored / still open
 
-Remaining undefined symbols after the extended ROM-fragment link test (70
-total), grouped by what each actually needs - real recon done 2026-08-25
-for all of these, confirmed via reading the real source, not guessed:
+After vendoring `esp_phy` (2026-08-26), only a handful of genuinely open
+items remain:
 
-- **Will resolve once actually linked** (already implemented, just not
-  combined in a real link yet): `freertos-compat`'s own exports
-  (`xQueue*`/`xSemaphore*`/`xTaskCreatePinnedToCore`/`vTaskDelete`/
-  `vPortYield`/`xPortInIsrContext`/`freertos_compat_enter/exit_critical`/
-  `heap_caps_*`/`esp_intr_*`/`esp_timer_*`), and libc
-  (`malloc`/`free`/`printf`/`abort`/`__assert_func`/`__udivdi3`, all in
-  RTEMS's newlib already).
+- **Resolves at a real executable link, not this session's `ld -r` test**:
+  libgcc soft-float/division/atomics helpers, `atan`/`sprintf` (libm/libc),
+  and `freertos-compat`'s own exports (already implemented, just not
+  combined into the specific partial-link test run this session).
 
-- **`coex_pti_v2`, `l2c_ble_link_get_tx_buf_num`** - expected, not new gaps:
-  the former is `esp_coex` (deliberately excluded from this profile, see
-  `../README.md`'s `CONFIG_ESP_COEX_ENABLED` note), the latter is an L2CAP
-  function from the NimBLE/Bluedroid host (Phase 4, not vendored yet).
-
-- **RESOLVED this session, corrected a wrong earlier assessment**:
-  `periph_module_enable`/`_disable`/`_reset`, `esp_clk_xtal_freq`,
-  `esp_clk_slowclk_cal_get`, `rtc_clk_slow_src_get`, `esp_random`,
-  `esp_read_mac` were all previously flagged here as needing new
-  register-level driver work because their headers pull in ESP-IDF's HAL
-  layer. Actually reading `hal/clk_gate_ll.h` (and the other HAL headers
-  these need) showed it's just more `static inline` pure-register-access
-  code, same as the register headers already vendored - no OS dependency
-  at all. All six vendored and compiling clean now (see status header
-  above); two small real build-recipe requirements fell out of doing this:
-  `-march=rv32imc_zicsr` (not plain `rv32imc` - `hw_random.c` needs a real
-  CSR instruction plain `rv32imc` doesn't cover) and `-include assert.h`
-  for `mac_addr.c` specifically (same category of gap as `bt.c`'s
-  `esp_intr_alloc.h` situation - real upstream file, confirmed not
-  including something it actually calls). Full detail in "Build recipe"
-  above.
-
-- **`esp_phy_enable`/`_disable`/`_modem_init`/`_modem_deinit` AND
-  `esp_wifi_bt_power_domain_on`/`_off`** - all six live in the same real,
-  open Apache-2.0 file: `components/esp_phy/src/phy_init.c` (1160 lines,
-  confirmed by reading it this session - the power-domain pair wasn't
-  previously known to live here, closing a small gap in Phase 2's original
-  recon). Not vendored: `phy_init.c` `#include`s `nvs.h`/`nvs_flash.h`/
-  `esp_efuse.h`/`esp_private/wifi.h`/`hal/efuse_hal.h`/`esp_private/
-  sleep_retention.h` - real additional subsystems (flash/NVS, sleep-
-  retention) this profile hasn't needed anything from yet, plus the efuse
-  subsystem noted next. Vendoring it means either pulling all of those in
-  too or carefully `#ifdef`-ing/stubbing around them - given the
-  `periph_module_*` lesson above, this may turn out more tractable than
-  it looks, but wasn't attempted this session (1160 lines is a lot to
-  discovery-loop through in one pass).
+- **`coex_pti_v2`, `coex_pti_print`, `l2c_ble_link_get_tx_buf_num`** -
+  expected, not new gaps: the first two are `esp_coex` (deliberately
+  excluded from this profile, see `../README.md`'s `CONFIG_ESP_COEX_ENABLED`
+  note), the third is an L2CAP function from the NimBLE/Bluedroid host
+  (Phase 4, not vendored yet).
 
 - **`ESP_EFUSE_MAC`, `ESP_EFUSE_USER_DATA_MAC_CUSTOM`,
   `esp_efuse_get_field_size`, `esp_efuse_read_field_blob`** - the one
-  real remaining piece `mac_addr.c` (vendored this session) itself needs:
-  the `efuse` component's actual read implementation
-  (`components/efuse/src/esp_efuse_api.c`, 355 lines, real and open,
-  `#include`s `esp_efuse_utility.h` - not yet checked how much further
-  that pulls in). Given the `periph_module_*` precedent, worth checking
-  before assuming it's hard - not attempted this session for time reasons,
-  not because it was assessed as complex.
+  real remaining piece `mac_addr.c` itself needs: the `efuse` component's
+  actual read implementation (`components/efuse/src/esp_efuse_api.c`, 355
+  lines, real and open). Given how often "pulls in a big subsystem" turned
+  out to be a false alarm this session (`periph_module_*`'s HAL layer,
+  `esp_phy`'s NVS/wifi/sleep dependencies), this is worth checking with the
+  same discovery-loop technique before assuming it's hard - not attempted
+  yet for time reasons, not because it was assessed as complex.
 
-- **`bt_bb_*`/`bt_track_pll_cap`/`r_llc_*`/`r_lld_*`/`r_rwip_*`/
-  `r_rwbtdm_isr_wrapper`** (14 symbols) - genuinely unresolved even after
-  checking every ROM `.ld` variant and both blob files, see "Linking"
-  above.
+- **`_bt_data_start`/`_bt_data_end`/`_bt_bss_start`/`_bt_bss_end`/
+  `_bt_controller_data_start`/`_bt_controller_data_end`/
+  `_bt_controller_bss_start`/`_bt_controller_bss_end`** - confirmed to be
+  real IDF's build-time `ldgen` tool output (reading `.lf` fragment files
+  like `components/bt/linker_esp_ble_controller.lf`), not ROM addresses.
+  Needs hand-written section-placement + `PROVIDE()` pairs in the
+  `esp32c3db` BSP's own linker script - real memory-placement work where
+  getting it wrong is a silent bug, not a compile error. The BSP's actual
+  default linker script hasn't been read yet.
+
+- **`bt_bb_set_max_gain`/`_set_rx_sense`/`_tx_cca_set`/`_v2_init_cmplx`,
+  `bt_track_pll_cap`, `r_llc_le_ping_restart`,
+  `r_lld_adv_start_update_filter_policy`/`_con_rx_channel_assess`/
+  `_res_list_priv_mode_update`/`_scan_try_sched`/`_test_stop`,
+  `r_rwbtdm_isr_wrapper`, `r_rwip_assert`/`_wakeup_end`** (14 symbols) -
+  genuinely unresolved even after checking every ROM `.ld` variant
+  (including per-revision `eco3`/`eco7` overlays), both `libbtdm_app.a`
+  variants, and now `esp-phy-lib`'s `libphy.a` too. Several appear in the
+  ROM linker script but commented out - real stock IDF resolves these some
+  other way not yet identified.
+
+- **NimBLE host source** (`components/bt/host/nimble`,
+  `npl_os_freertos.c`) - Phase 4, not started. Needed for any actual
+  GAP/GATT application API - `bt.c`/`esp_phy` alone only get the
+  controller running, not something an application can call.
 
 - **`_bt_data_start`/`_bt_data_end`/`_bt_bss_start`/`_bt_bss_end`/
   `_bt_controller_data_start`/`_bt_controller_data_end`/
