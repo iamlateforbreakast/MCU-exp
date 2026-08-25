@@ -157,6 +157,44 @@ PROVIDE ( ets_delay_us = 0x40000050 );
  * undefined).
  */
 PROVIDE ( esp_rom_delay_us = ets_delay_us );
+/*
+ * The five below were found needed only after vendoring esp_clk.c/
+ * hw_random.c/mac_addr.c/rtc_clk.c/periph_ctrl.c (2026-08-25, second pass
+ * - not part of libbtdm_app.a's own needs, part of what real esp32c3
+ * open-source ESP-IDF C files need from the ROM). Same citation method:
+ * matched against real esp32c3.rom*.ld, each a real PROVIDE()-based ROM
+ * alias in the source, re-added here as two-hop aliases resolved to their
+ * final real addresses (both hops confirmed present in the real files,
+ * not assumed).
+ */
+PROVIDE ( ets_get_cpu_frequency = 0x40000584 );
+PROVIDE ( esp_rom_get_cpu_ticks_per_us = ets_get_cpu_frequency );
+PROVIDE ( ets_update_cpu_frequency = 0x40000588 );
+PROVIDE ( esp_rom_set_cpu_ticks_per_us = ets_update_cpu_frequency );
+PROVIDE ( rom_i2c_writeReg = 0x4000195c );
+PROVIDE ( esp_rom_regi2c_write = rom_i2c_writeReg );
+PROVIDE ( rom_i2c_writeReg_Mask = 0x40001960 );
+PROVIDE ( esp_rom_regi2c_write_mask = rom_i2c_writeReg_Mask );
+PROVIDE ( ets_printf = 0x40000040 );
+PROVIDE ( esp_rom_printf = ets_printf );
+
+/*
+ * Different category from everything above: not ROM function addresses,
+ * but the memory-mapped peripheral-register-struct globals real IDF's
+ * `soc/*_struct.h` headers declare `extern` (e.g. `extern system_dev_t
+ * SYSTEM;` in `../vendor/components/soc/esp32c3/include/soc/
+ * system_struct.h:1397`) for direct `SYSTEM.some_field = ...`-style
+ * register access - `rtc_time.c` (vendored 2026-08-25) is the first
+ * vendored file in this repo to use this style. Addresses computed from
+ * this repo's own already-vendored, cited headers (`reg_base.h`'s
+ * `DR_REG_SYSTEM_BASE`/`DR_REG_TIMERGROUP0_BASE`, `soc.h`'s
+ * `REG_TIMG_BASE(i)` macro), not looked up separately - self-consistent
+ * with what's already in this repo, not a new external source.
+ */
+PROVIDE ( SYSTEM = 0x600c0000 );
+PROVIDE ( TIMERG0 = 0x6001F000 );
+PROVIDE ( TIMERG1 = 0x60020000 );
+
 PROVIDE ( r_bt_bb_isr = 0x40000b9c );
 PROVIDE ( r_btdm_task_post = 0x40000c14 );
 PROVIDE ( r_btdm_task_post_from_isr = 0x40000c18 );

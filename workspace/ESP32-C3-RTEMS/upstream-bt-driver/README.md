@@ -51,13 +51,18 @@ time found three more real, confirmed bugs in `freertos-compat`
 against `bt.o`'s needs (the step Phase 0/3 could only postpone until now) -
 92% of what the blob needs is confirmed satisfiable via real ESP-IDF ROM
 linker scripts, now written up as a real, validated fragment
-(`rom-linker-patch/btdm-rom-symbols.ld` - a real test link with it applied,
-`bt.o` + the real blob, dropped 88 undefined symbols to 73), 14 symbols
-remain genuinely unresolved. Not linked into an actual RTEMS application
-yet, and still no NimBLE/`esp_phy` source vendored - `vendor/README.md`'s
-"Not vendored / still open" has the precise remaining list, including a
-correction: the `_bt_*_start`/`_end` symbols bt.c needs turned out to be
-IDF's own build-time linker-fragment generator (`ldgen`) output, not ROM
+(`rom-linker-patch/btdm-rom-symbols.ld`). **6 more real support files
+vendored and compiling clean, same session**: `esp_clk.c`/`hw_random.c`/
+`mac_addr.c`/`periph_ctrl.c`/`rtc_clk.c`/`rtc_time.c`, resolving
+`periph_module_enable/_disable/_reset`, `esp_clk_xtal_freq`,
+`esp_clk_slowclk_cal_get`, `rtc_clk_slow_src_get`, `esp_random`, and
+`esp_read_mac` - a full test link (`bt.o` + the real blob + these 6 files +
+the ROM fragment) now leaves only **70 undefined symbols, down from 88**.
+Not linked into an actual RTEMS application yet, and still no NimBLE/
+`esp_phy` source vendored - `vendor/README.md`'s "Not vendored / still
+open" has the precise remaining list, including a correction: the
+`_bt_*_start`/`_end` symbols bt.c needs turned out to be IDF's own
+build-time linker-fragment generator (`ldgen`) output, not ROM
 addresses - real linker-script surgery against the BSP's own script, not
 yet started.
 

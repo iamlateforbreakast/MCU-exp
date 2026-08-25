@@ -1,54 +1,95 @@
 # Vendored ESP-IDF source (Apache-2.0)
 
-**Status: `bt.c` compiles clean (2026-08-25)** against the real `riscv-rtems7-gcc` +
-installed `esp32c3db` BSP + `freertos-compat` shim + `sdkconfig-compat.h`, in
-`esp32c3-rtems-dev`. A real test-link of `bt.o` + the fetched (not vendored)
-`libbtdm_app.a` + `../rom-linker-patch/btdm-rom-symbols.ld` (`riscv-rtems7-ld
--r`, same session) leaves only 73 undefined symbols - down from 88 - see
+**Status: `bt.c` compiles clean, and 6 more real support files are now
+vendored and compile clean too (2026-08-25)**, against the real
+`riscv-rtems7-gcc` + installed `esp32c3db` BSP + `freertos-compat` shim +
+`sdkconfig-compat.h`, in `esp32c3-rtems-dev`. A real test-link of `bt.o` +
+those 6 files' objects + the fetched (not vendored) `libbtdm_app.a` +
+`../rom-linker-patch/btdm-rom-symbols.ld` (`riscv-rtems7-ld -r`, same
+session) leaves only **70 undefined symbols - down from 88** - see
 "Linking" below for the exact remaining set and what each one needs.
 
 Files here mirror their real path inside an ESP-IDF checkout
 (`components/<component>/...`), copied unmodified (SPDX headers intact) from
 `github.com/espressif/esp-idf` at the pinned tag **v5.3.1**, same tag this
-repo's other recon has used throughout. Two categories:
+repo's other recon has used throughout. Three categories:
 
 - **`bt/controller/esp32c3/bt.c`, `bt/include/esp32c3/include/esp_bt.h`** -
   the actual controller frontend this whole directory exists to integrate
   (see `../README.md`).
-- **Everything else** - transitively-required ESP-IDF headers `bt.c` (or a
-  header it includes) `#include`s, discovered by iteratively compiling
-  `bt.c` against the real toolchain and vendoring whatever the compiler
-  reported missing, one file at a time, always preferring the esp32c3-specific
-  variant when a header exists per-chip (confirmed necessary once done wrong:
-  an early pass grabbed `esp32c2`'s `interrupt_reg.h` by accident since it's
-  alphabetically first - caught by the resulting build errors, not by luck).
-  All are pure declarations/macros/register-bitfield headers with zero
-  runtime C source of their own - no `.c` files were vendored here beyond
-  `bt.c` itself.
+- **`esp_hw_support/{esp_clk,hw_random,mac_addr,periph_ctrl}.c` and
+  `esp_hw_support/port/esp32c3/{rtc_clk,rtc_time}.c`** - real, open
+  implementations of `esp_clk_xtal_freq`/`esp_clk_slowclk_cal_get`,
+  `esp_random`, `esp_read_mac`, `periph_module_enable/_disable/_reset` +
+  `wifi_bt_common_module_enable/_disable`, and `rtc_clk_slow_src_get` -
+  six of `bt.o`'s undefined symbols. **A wrong assumption corrected**:
+  these were first assessed (previous session) as needing new
+  register-level driver work comparable to this repo's GPIO/SPI/I2C
+  drivers, based on their headers pulling in ESP-IDF's HAL layer
+  (`hal/clk_gate_ll.h` etc.) - reading that HAL layer showed it's just
+  more `static inline` pure-register-access code (same category as
+  `soc/rtc_cntl_reg.h`, already vendored), so these five `.c` files and
+  their ~20 transitive headers turned out to be ordinary vendoring, not
+  new driver work. Don't assume "pulls in `hal/`" means hard without
+  actually reading the file - this was the second time this session that
+  assumption was wrong (see `../README.md`'s note on the `-include
+  esp_intr_alloc.h` finding for the first).
+- **Everything else** - transitively-required ESP-IDF headers, discovered
+  by iteratively compiling each `.c` file against the real toolchain and
+  vendoring whatever the compiler reported missing, one file at a time,
+  always preferring the esp32c3-specific variant when a header exists
+  per-chip (confirmed necessary once done wrong: an early pass grabbed
+  `esp32c2`'s `interrupt_reg.h` by accident since it's alphabetically
+  first - caught by the resulting build errors, not by luck). All pure
+  declarations/macros/register-bitfield headers, no further `.c` sources
+  needed beyond the ones named above.
 
 ## Build recipe
 
 Confirmed working (`esp32c3-rtems-dev`, 2026-08-25):
 
 ```sh
-riscv-rtems7-gcc -march=rv32imc -mabi=ilp32 -Wall -Wextra \
+riscv-rtems7-gcc -march=rv32imc_zicsr -mabi=ilp32 -Wall -Wextra \
   -include esp_intr_alloc.h \
   -I../build-include -I../freertos-compat/include \
   -Icomponents/bt/include/esp32c3/include \
   -Icomponents/esp_common/include \
-  -Icomponents/esp_rom/include -Icomponents/esp_rom/include/esp32c3 \
+  -Icomponents/esp_rom/include -Icomponents/esp_rom/include/esp32c3 -Icomponents/esp_rom/esp32c3 \
   -Icomponents/riscv/include \
   -Icomponents/soc/esp32c3/include \
   -Icomponents/esp_system/include \
-  -Icomponents/esp_hw_support/include -Icomponents/esp_hw_support/port/esp32c3/include \
+  -Icomponents/esp_hw_support/include -Icomponents/esp_hw_support/port/esp32c3/include -Icomponents/esp_hw_support/port/include -Icomponents/esp_hw_support/include/soc \
   -Icomponents/esp_phy/include \
   -Icomponents/heap/include \
+  -Icomponents/hal/esp32c3/include -Icomponents/hal/platform_port/include -Icomponents/hal/include \
+  -Icomponents/efuse/include -Icomponents/efuse/esp32c3/include \
   -isystem $RTEMS_ROOT/riscv-rtems7/esp32c3db/lib/include \
   -c components/bt/controller/esp32c3/bt.c -o bt.o
 ```
 
 (paths relative to this `vendor/` directory; run from `upstream-bt-driver/`
-with `-Ivendor/components/...` instead, as this session did).
+with `-Ivendor/components/...` instead, as this session did. The `hal`/
+`efuse`/extra `esp_hw_support` include dirs are only needed once compiling
+the 6 support files described above, not for `bt.c` alone - included here
+so this is one complete, current recipe rather than two partial ones.)
+
+**`-march=rv32imc_zicsr` (not plain `rv32imc`) is required for `hw_random.c`**
+- real, confirmed 2026-08-25: `riscv/rv_utils.h`'s CSR read
+  (`csrr a5,0x7e2`, reading the hardware RNG-adjacent CSR) fails to
+  assemble under plain `rv32imc` on this toolchain's binutils
+  (`unrecognized opcode ... extension 'zicsr' required` - a real RISC-V
+  spec split, not a code bug: `Zicsr`/`Zifencei` were carved out of the
+  base ISA after `rv32imc` was originally specified, and this binutils
+  version enforces the split). Every other vendored file here compiles
+  identically with or without it - safe to always include.
+
+**`mac_addr.c` additionally needs `-include assert.h`** on its own compile
+line (on top of the recipe above) - it calls `assert()` (`mac_addr.c:216`)
+without `#include <assert.h>` anywhere in its own real, unmodified include
+chain (checked: `soc_caps.h`/`esp_rom_efuse.h`/`esp_mac.h`/`esp_efuse.h`/
+`esp_efuse_table.h`, none of them include it either) - the same category of
+gap as `bt.c`'s `esp_intr_alloc.h` situation below, confirmed genuinely
+true of upstream IDF's own file, not something this vendoring broke.
 
 **`-include esp_intr_alloc.h` is required and not a hack.** `bt.c` calls
 `esp_intr_alloc`/`esp_intr_free`/`esp_intr_enable`/`esp_intr_disable` and uses
@@ -158,6 +199,20 @@ resolved at full scale now instead of for one symbol - integrating this
 fragment into the actual RTEMS BSP's own linker script (vs. this session's
 standalone `-T`-flag validation) is the next step, not yet done.
 
+**Extended further, same session, after vendoring the 6 support files
+above**: linking them in surfaced 8 more real needs - 5 more ROM aliases
+(`esp_rom_get_cpu_ticks_per_us`, `esp_rom_set_cpu_ticks_per_us`,
+`esp_rom_regi2c_write(_mask)`, `esp_rom_printf`, each a real two-hop
+`PROVIDE()` alias, same citation method) and 3 memory-mapped
+peripheral-register-struct globals (`SYSTEM`, `TIMERG0`, `TIMERG1` - a
+different mechanism from ROM function addresses: real IDF's `soc/
+*_struct.h` headers declare these `extern` for direct `SYSTEM.field`-style
+register access; addresses computed from this repo's own already-vendored
+`reg_base.h`/`soc.h` macros, not a new external source). All added to the
+same fragment file, re-validated with a fresh link test
+(`bt.o` + `libbtdm_app.a` + the 6 support `.o` files + the fragment):
+**70 undefined symbols remain**, down from 88.
+
 **14 symbols remain genuinely unresolved** even after checking every
 `esp32c3.rom*.ld` file (including the per-revision `eco3`/`eco7` overlays)
 and both `libbtdm_app.a` and `libbtdm_app_flash.a`:
@@ -182,22 +237,39 @@ identified yet - flagged as open, not guessed at.
 
 ## Not vendored / still open
 
-Remaining undefined symbols after the ROM-fragment link test (73 total),
-grouped by what each actually needs - real recon done 2026-08-25 for all of
-these, confirmed via reading the real source, not guessed:
+Remaining undefined symbols after the extended ROM-fragment link test (70
+total), grouped by what each actually needs - real recon done 2026-08-25
+for all of these, confirmed via reading the real source, not guessed:
 
 - **Will resolve once actually linked** (already implemented, just not
   combined in a real link yet): `freertos-compat`'s own exports
   (`xQueue*`/`xSemaphore*`/`xTaskCreatePinnedToCore`/`vTaskDelete`/
   `vPortYield`/`xPortInIsrContext`/`freertos_compat_enter/exit_critical`/
   `heap_caps_*`/`esp_intr_*`/`esp_timer_*`), and libc
-  (`malloc`/`free`/`printf`/`__assert_func`/`__udivdi3`, all in RTEMS's
-  newlib already).
+  (`malloc`/`free`/`printf`/`abort`/`__assert_func`/`__udivdi3`, all in
+  RTEMS's newlib already).
 
 - **`coex_pti_v2`, `l2c_ble_link_get_tx_buf_num`** - expected, not new gaps:
   the former is `esp_coex` (deliberately excluded from this profile, see
   `../README.md`'s `CONFIG_ESP_COEX_ENABLED` note), the latter is an L2CAP
   function from the NimBLE/Bluedroid host (Phase 4, not vendored yet).
+
+- **RESOLVED this session, corrected a wrong earlier assessment**:
+  `periph_module_enable`/`_disable`/`_reset`, `esp_clk_xtal_freq`,
+  `esp_clk_slowclk_cal_get`, `rtc_clk_slow_src_get`, `esp_random`,
+  `esp_read_mac` were all previously flagged here as needing new
+  register-level driver work because their headers pull in ESP-IDF's HAL
+  layer. Actually reading `hal/clk_gate_ll.h` (and the other HAL headers
+  these need) showed it's just more `static inline` pure-register-access
+  code, same as the register headers already vendored - no OS dependency
+  at all. All six vendored and compiling clean now (see status header
+  above); two small real build-recipe requirements fell out of doing this:
+  `-march=rv32imc_zicsr` (not plain `rv32imc` - `hw_random.c` needs a real
+  CSR instruction plain `rv32imc` doesn't cover) and `-include assert.h`
+  for `mac_addr.c` specifically (same category of gap as `bt.c`'s
+  `esp_intr_alloc.h` situation - real upstream file, confirmed not
+  including something it actually calls). Full detail in "Build recipe"
+  above.
 
 - **`esp_phy_enable`/`_disable`/`_modem_init`/`_modem_deinit` AND
   `esp_wifi_bt_power_domain_on`/`_off`** - all six live in the same real,
@@ -206,32 +278,23 @@ these, confirmed via reading the real source, not guessed:
   previously known to live here, closing a small gap in Phase 2's original
   recon). Not vendored: `phy_init.c` `#include`s `nvs.h`/`nvs_flash.h`/
   `esp_efuse.h`/`esp_private/wifi.h`/`hal/efuse_hal.h`/`esp_private/
-  sleep_retention.h` - real additional subsystems (flash/NVS, efuse
-  reading, sleep-retention) this profile hasn't needed anything from yet.
-  Vendoring it means either pulling all of those in too or carefully
-  `#ifdef`-ing/stubbing around them - a task on the same scale as
-  `freertos-compat` itself, not attempted this session.
+  sleep_retention.h` - real additional subsystems (flash/NVS, sleep-
+  retention) this profile hasn't needed anything from yet, plus the efuse
+  subsystem noted next. Vendoring it means either pulling all of those in
+  too or carefully `#ifdef`-ing/stubbing around them - given the
+  `periph_module_*` lesson above, this may turn out more tractable than
+  it looks, but wasn't attempted this session (1160 lines is a lot to
+  discovery-loop through in one pass).
 
-- **`periph_module_enable`/`_disable`/`_reset`** - real, open
-  (`components/esp_hw_support/periph_ctrl.c`), and confirmed **not**
-  no-ops for ESP32-C3: their entire body is gated on
-  `__PERIPH_CTRL_ALLOW_LEGACY_API`, which `esp_private/periph_ctrl.h`
-  (vendored here) `#define`s unconditionally for `CONFIG_IDF_TARGET_ESP32C3`
-  (real header, real gate list - checked, not assumed). The real bodies
-  call `periph_ll_enable_clk_clear_rst`/`_disable_clk_set_rst`/`_reset`
-  from `hal/clk_gate_ll.h` - ESP-IDF's HAL layer, a real per-chip
-  register-access abstraction this repo hasn't touched yet. Register-level
-  work in the same vein as `../upstream-gpio-driver/` etc., not attempted.
-
-- **`esp_clk_xtal_freq`, `esp_clk_slowclk_cal_get`** (`components/
-  esp_hw_support/esp_clk.c`), **`rtc_clk_slow_src_get`** (`components/
-  esp_hw_support/port/esp32c3/rtc_clk.c`), **`esp_random`** (`components/
-  esp_hw_support/hw_random.c`), **`esp_read_mac`** (`components/
-  esp_hw_support/mac_addr.c`, efuse-backed) - all real, open, and all pull
-  in ESP-IDF's HAL layer (`hal/clk_tree_ll.h`, `hal/lp_timer_hal.h`,
-  `hal/lp_clkrst_ll.h`) and/or the efuse subsystem
-  (`esp_efuse.h`/`esp_efuse_table.h`) - same category of new register-level
-  work as `periph_module_*` above, not attempted.
+- **`ESP_EFUSE_MAC`, `ESP_EFUSE_USER_DATA_MAC_CUSTOM`,
+  `esp_efuse_get_field_size`, `esp_efuse_read_field_blob`** - the one
+  real remaining piece `mac_addr.c` (vendored this session) itself needs:
+  the `efuse` component's actual read implementation
+  (`components/efuse/src/esp_efuse_api.c`, 355 lines, real and open,
+  `#include`s `esp_efuse_utility.h` - not yet checked how much further
+  that pulls in). Given the `periph_module_*` precedent, worth checking
+  before assuming it's hard - not attempted this session for time reasons,
+  not because it was assessed as complex.
 
 - **`bt_bb_*`/`bt_track_pll_cap`/`r_llc_*`/`r_lld_*`/`r_rwip_*`/
   `r_rwbtdm_isr_wrapper`** (14 symbols) - genuinely unresolved even after

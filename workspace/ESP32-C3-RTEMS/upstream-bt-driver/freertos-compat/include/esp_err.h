@@ -22,5 +22,6 @@ typedef int esp_err_t;
 #define ESP_ERR_INVALID_STATE  0x103
 #define ESP_ERR_INVALID_SIZE   0x104
 #define ESP_ERR_NOT_SUPPORTED  0x106
+#define ESP_ERR_INVALID_MAC    0x10B
 
 #endif /* FREERTOS_COMPAT_ESP_ERR_H */
