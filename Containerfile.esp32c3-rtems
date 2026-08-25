@@ -1,9 +1,9 @@
-# Dockerfile to build a container image for RTEMS development targeting the
+# Containerfile to build a container image for RTEMS development targeting the
 # ESP32-C3, using RTEMS's "esp32c3db" BSP (riscv/esp32c3db):
 # https://gitlab.rtems.org/rtems/rtos/rtems/-/merge_requests/1160
 #
-# Distinct from Dockerfile.esp32c3, which targets the same chip through Espressif's
-# own ESP-IDF/FreeRTOS stack instead of RTEMS, and from Dockerfile.ubuntu (the
+# Distinct from Containerfile.esp32c3, which targets the same chip through Espressif's
+# own ESP-IDF/FreeRTOS stack instead of RTEMS, and from Containerfile.ubuntu (the
 # rtems-dev service), which builds RTEMS for SPARC/leon3 and generic RISC-V for use
 # under QEMU/Renode rather than for real ESP32-C3 hardware.
 #

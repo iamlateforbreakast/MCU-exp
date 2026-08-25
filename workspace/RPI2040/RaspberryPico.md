@@ -1,7 +1,7 @@
 
 # RP2040 development
 
-The `rp2040-dev` container (see `Dockerfile.rp2040` / `compose.yaml`) provides the
+The `rp2040-dev` container (see `Containerfile.rp2040` / `compose.yaml`) provides the
 arm-none-eabi GCC toolchain and the Pico SDK (cloned to `$PICO_SDK_PATH`) for the RP2040.
 
 ## Usage
@@ -119,7 +119,7 @@ FreeRTOS task with its own period and priority, using `vTaskDelay()` so the
 scheduler can run other tasks while one is waiting.
 
 The `rp2040-dev` container clones the FreeRTOS kernel (including its RP2040
-SMP port) to `$FREERTOS_KERNEL_PATH` at build time (see `Dockerfile.rp2040`)
+SMP port) to `$FREERTOS_KERNEL_PATH` at build time (see `Containerfile.rp2040`)
 - no extra setup needed inside the container. `FreeRTOSConfig.h` and the
 task/queue setup in `freertos_blink.c` are grounded against the official
 `pico-examples/freertos/hello_freertos` example, trimmed down to a single

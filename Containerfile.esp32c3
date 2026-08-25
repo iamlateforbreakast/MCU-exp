@@ -1,5 +1,4 @@
-# Dockerfile to build a container image for RP2040 (Raspberry Pi Pico) development
-# using the official Pico SDK toolchain.
+# Containerfile to build a container image for ESP32-C3 development using ESP-IDF
 # Intended for use with podman (see compose.yaml, which relies on userns_mode: keep-id
 # to map the host user's UID/GID into the container).
 FROM ubuntu:24.04
@@ -12,20 +11,26 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
     apt-get -y upgrade && \
     apt-get install -y \
+        bison \
         build-essential \
+        ccache \
         cmake \
-        gcc-arm-none-eabi \
-        gdb-multiarch \
+        curl \
+        flex \
         git \
-        libnewlib-arm-none-eabi \
-        libstdc++-arm-none-eabi-newlib \
+        gperf \
+        gdb \
+        libffi-dev \
+        libssl-dev \
         libusb-1.0-0 \
         libusb-1.0-0-dev \
         ninja-build \
-        pkg-config \
         python3 \
+        python3-pip \
+        python3-venv \
         sudo \
         udev \
+        unzip \
         vim \
         wget && \
     apt-get clean && \
@@ -42,7 +47,7 @@ ARG USER_GID=${USER_UID}
 # Added to sudo and dialout groups (dialout for serial/USB flashing access)
 RUN userdel -r ubuntu && \
     groupadd -g ${USER_GID} ${USERNAME} && \
-    useradd -u ${USER_UID} -g ${USER_GID} -c "RP2040 Developer" \
+    useradd -u ${USER_UID} -g ${USER_GID} -c "ESP32 Developer" \
             -G sudo,dialout -d "/home/${USERNAME}" --create-home "${USERNAME}" && \
     export PS1="\[\033[01;34m\](podman) \[\033[00m\]\u@\h:\w\$ " >> /home/${USERNAME}/.bashrc
 
@@ -55,15 +60,12 @@ RUN echo VARIANT_ID=container >> /etc/os-release
 USER ${USERNAME}
 WORKDIR /home/${USERNAME}
 
-ENV PICO_SDK_PATH=/home/${USERNAME}/pico-sdk
+ENV IDF_TOOLS_PATH=/home/${USERNAME}/.espressif
 
-# Fetch the Pico SDK (and its submodules, e.g. tinyusb) for the RP2040
-RUN git clone --recursive https://github.com/raspberrypi/pico-sdk.git ${PICO_SDK_PATH}
+# Fetch ESP-IDF and install the toolchain/tools scoped to the ESP32-C3 target
+RUN git clone -b v5.3.1 --recursive https://github.com/espressif/esp-idf.git /home/${USERNAME}/esp-idf && \
+    /home/${USERNAME}/esp-idf/install.sh esp32c3
 
-ENV FREERTOS_KERNEL_PATH=/home/${USERNAME}/FreeRTOS-Kernel
-
-# Fetch the FreeRTOS kernel, including its RP2040 SMP port
-# (portable/ThirdParty/GCC/RP2040), for the FreeRTOS example.
-RUN git clone https://github.com/FreeRTOS/FreeRTOS-Kernel.git ${FREERTOS_KERNEL_PATH}
+RUN echo ". /home/${USERNAME}/esp-idf/export.sh > /dev/null 2>&1" >> /home/${USERNAME}/.bashrc
 
 CMD ["/bin/bash"]

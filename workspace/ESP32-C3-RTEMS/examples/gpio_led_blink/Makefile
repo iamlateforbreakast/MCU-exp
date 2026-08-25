@@ -8,7 +8,7 @@
 # integrated into the esp32c3db BSP build first - see that driver's
 # README's "Integration steps" (confirmed working end-to-end 2026-08-23,
 # but not persisted in the esp32c3-rtems-dev image, so it needs to be
-# re-applied per container until it lands in the Dockerfile/upstream).
+# re-applied per container until it lands in the Containerfile/upstream).
 RTEMS_ROOT  ?= $(HOME)/rtems/7
 CC          := riscv-rtems7-gcc
 BSP_PC_FILE := $(firstword $(shell find $(RTEMS_ROOT) -name '*esp32c3db*.pc' 2>/dev/null))

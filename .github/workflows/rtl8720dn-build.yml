@@ -5,12 +5,12 @@ on:
     branches:
       - main
     paths:
-      - "Dockerfile.rtl8720dn"
+      - "Containerfile.rtl8720dn"
       - "compose.yaml"
       - ".github/workflows/rtl8720dn-build.yml"
   pull_request:
     paths:
-      - "Dockerfile.rtl8720dn"
+      - "Containerfile.rtl8720dn"
       - "compose.yaml"
       - ".github/workflows/rtl8720dn-build.yml"
   workflow_dispatch: {}
@@ -29,7 +29,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: Dockerfile.rtl8720dn
+          file: Containerfile.rtl8720dn
           push: false
           load: true
           tags: rtl8720dn-dev:ci

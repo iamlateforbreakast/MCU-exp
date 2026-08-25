@@ -2,7 +2,7 @@
 
 # Luckfox Pico development container
 
-The `luckfoxpico-dev` container (see `Dockerfile.luckfoxpico` / `compose.yaml`) wraps the
+The `luckfoxpico-dev` container (see `Containerfile.luckfoxpico` / `compose.yaml`) wraps the
 vendor's official `luckfoxtech/luckfox_pico:1.0` image. Unlike the other MCU containers in
 this repo, the Buildroot-based SDK is a multi-GB tree that isn't baked into the image -
 clone it into the bind-mounted workspace instead (see below), matching the vendor's own

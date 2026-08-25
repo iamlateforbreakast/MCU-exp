@@ -1,6 +1,6 @@
-# Dockerfile to build a container image for AI Thinker M62 (Ai-M6X family) development.
-# The SDK bundles its own riscv64-unknown-elf toolchain under tools/ (used instead of a
-# distro-installed cross compiler), so gcc-riscv64-unknown-elf here is just a baseline.
+# Containerfile to build a container image for RTL8720DN (AI Thinker BW16) development
+# using the Realtek AmebaD SDK, bypassing the Arduino framework for low-level access
+# to the Cortex-M33 (High Power/KM4) and Cortex-M23 (Low Power/KM0) cores.
 # Intended for use with podman (see compose.yaml, which relies on userns_mode: keep-id
 # to map the host user's UID/GID into the container).
 FROM ubuntu:24.04
@@ -13,14 +13,15 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
     apt-get -y upgrade && \
     apt-get install -y \
+        binutils-arm-none-eabi \
         build-essential \
-        cmake \
-        gcc-riscv64-unknown-elf \
+        gcc-arm-none-eabi \
         gdb-multiarch \
         git \
+        libncurses-dev \
+        libssl-dev \
         libusb-1.0-0 \
         libusb-1.0-0-dev \
-        ninja-build \
         python3 \
         python3-pip \
         python3-venv \
@@ -43,7 +44,7 @@ ARG USER_GID=${USER_UID}
 # Added to sudo and dialout groups (dialout for serial/USB flashing access)
 RUN userdel -r ubuntu && \
     groupadd -g ${USER_GID} ${USERNAME} && \
-    useradd -u ${USER_UID} -g ${USER_GID} -c "AI-M62 Developer" \
+    useradd -u ${USER_UID} -g ${USER_GID} -c "RTL8720DN Developer" \
             -G sudo,dialout -d "/home/${USERNAME}" --create-home "${USERNAME}" && \
     export PS1="\[\033[01;34m\](podman) \[\033[00m\]\u@\h:\w\$ " >> /home/${USERNAME}/.bashrc
 
@@ -56,12 +57,13 @@ RUN echo VARIANT_ID=container >> /etc/os-release
 USER ${USERNAME}
 WORKDIR /home/${USERNAME}
 
-ENV AIM62_SDK_PATH=/home/${USERNAME}/aithinker_Ai-M6X_SDK
+# arm-none-eabi-gcc lands flat in /usr/bin via apt, so that's the toolchain dir
+# the Realtek SDK's build scripts expect.
+ENV RTK_TOOLCHAIN_DIR=/usr/bin
 
-# Fetch the Ai-Thinker M6X SDK and its tools submodules (bundled cross toolchain, etc.)
-RUN git clone https://github.com/Ai-Thinker-Open/aithinker_Ai-M6X_SDK.git ${AIM62_SDK_PATH} && \
-    cd ${AIM62_SDK_PATH}/tools && \
-    git submodule init && \
-    git submodule update .
+# Fetch the Realtek AmebaD SDK (shallow clone; it's a large monorepo) and the
+# BW16 flash tool
+RUN git clone --depth 1 https://github.com/Ameba-AIoT/ameba-rtos.git /home/${USERNAME}/ameba-rtos && \
+    git clone --depth 1 https://github.com/jojoling/ameba_bw16_autoflash.git /home/${USERNAME}/ameba_bw16_autoflash
 
 CMD ["/bin/bash"]

@@ -1,13 +1,13 @@
 # ESP32-C3 RTEMS development
 
-The `esp32c3-rtems-dev` container (see `Dockerfile.esp32c3-rtems` / `compose.yaml`)
+The `esp32c3-rtems-dev` container (see `Containerfile.esp32c3-rtems` / `compose.yaml`)
 builds RTEMS for the ESP32-C3 using RTEMS's `esp32c3db` BSP (`riscv/esp32c3db`).
 
 **Status: draft, image build-verified.** `esp32c3db` was merged into RTEMS's git
 `main` branch via
 [merge request !1160](https://gitlab.rtems.org/rtems/rtos/rtems/-/merge_requests/1160)
 and is documented under RTEMS's development docs (targeting the upcoming RTEMS 7);
-it has not shipped in a tagged RTEMS release. `Dockerfile.esp32c3-rtems` therefore
+it has not shipped in a tagged RTEMS release. `Containerfile.esp32c3-rtems` therefore
 builds the RSB toolchain and RTEMS kernel from source instead of a released
 `rtems-source-builder` bset.
 
@@ -95,7 +95,7 @@ then `./waf configure --prefix=$RTEMS_ROOT --rtems-bsps=riscv/esp32c3db && ./waf
 2026-08-23: the BSP builds clean and `examples/gpio_led_blink` links to a `.exe`
 with no warnings. Because `~/kernel` in the container is cloned fresh each image
 build and isn't persisted, that integration currently needs to be re-applied
-per-container (or land in `Dockerfile.esp32c3-rtems`/upstream) until then - see
+per-container (or land in `Containerfile.esp32c3-rtems`/upstream) until then - see
 the driver README for the exact steps. Still untested against real hardware.
 
 ## Flashing and monitoring

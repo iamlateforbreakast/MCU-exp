@@ -1,6 +1,5 @@
-# Dockerfile to build a container image for RTL8720DN (AI Thinker BW16) development
-# using the Realtek AmebaD SDK, bypassing the Arduino framework for low-level access
-# to the Cortex-M33 (High Power/KM4) and Cortex-M23 (Low Power/KM0) cores.
+# Containerfile to build a container image for RP2040 (Raspberry Pi Pico) development
+# using the official Pico SDK toolchain.
 # Intended for use with podman (see compose.yaml, which relies on userns_mode: keep-id
 # to map the host user's UID/GID into the container).
 FROM ubuntu:24.04
@@ -13,21 +12,20 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
     apt-get -y upgrade && \
     apt-get install -y \
-        binutils-arm-none-eabi \
         build-essential \
+        cmake \
         gcc-arm-none-eabi \
         gdb-multiarch \
         git \
-        libncurses-dev \
-        libssl-dev \
+        libnewlib-arm-none-eabi \
+        libstdc++-arm-none-eabi-newlib \
         libusb-1.0-0 \
         libusb-1.0-0-dev \
+        ninja-build \
+        pkg-config \
         python3 \
-        python3-pip \
-        python3-venv \
         sudo \
         udev \
-        unzip \
         vim \
         wget && \
     apt-get clean && \
@@ -44,7 +42,7 @@ ARG USER_GID=${USER_UID}
 # Added to sudo and dialout groups (dialout for serial/USB flashing access)
 RUN userdel -r ubuntu && \
     groupadd -g ${USER_GID} ${USERNAME} && \
-    useradd -u ${USER_UID} -g ${USER_GID} -c "RTL8720DN Developer" \
+    useradd -u ${USER_UID} -g ${USER_GID} -c "RP2040 Developer" \
             -G sudo,dialout -d "/home/${USERNAME}" --create-home "${USERNAME}" && \
     export PS1="\[\033[01;34m\](podman) \[\033[00m\]\u@\h:\w\$ " >> /home/${USERNAME}/.bashrc
 
@@ -57,13 +55,15 @@ RUN echo VARIANT_ID=container >> /etc/os-release
 USER ${USERNAME}
 WORKDIR /home/${USERNAME}
 
-# arm-none-eabi-gcc lands flat in /usr/bin via apt, so that's the toolchain dir
-# the Realtek SDK's build scripts expect.
-ENV RTK_TOOLCHAIN_DIR=/usr/bin
+ENV PICO_SDK_PATH=/home/${USERNAME}/pico-sdk
 
-# Fetch the Realtek AmebaD SDK (shallow clone; it's a large monorepo) and the
-# BW16 flash tool
-RUN git clone --depth 1 https://github.com/Ameba-AIoT/ameba-rtos.git /home/${USERNAME}/ameba-rtos && \
-    git clone --depth 1 https://github.com/jojoling/ameba_bw16_autoflash.git /home/${USERNAME}/ameba_bw16_autoflash
+# Fetch the Pico SDK (and its submodules, e.g. tinyusb) for the RP2040
+RUN git clone --recursive https://github.com/raspberrypi/pico-sdk.git ${PICO_SDK_PATH}
+
+ENV FREERTOS_KERNEL_PATH=/home/${USERNAME}/FreeRTOS-Kernel
+
+# Fetch the FreeRTOS kernel, including its RP2040 SMP port
+# (portable/ThirdParty/GCC/RP2040), for the FreeRTOS example.
+RUN git clone https://github.com/FreeRTOS/FreeRTOS-Kernel.git ${FREERTOS_KERNEL_PATH}
 
 CMD ["/bin/bash"]

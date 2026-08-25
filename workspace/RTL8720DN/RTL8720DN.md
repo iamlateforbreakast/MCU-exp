@@ -1,6 +1,6 @@
 # RTL8720DN (BW16) development container
 
-The `rtl8720dn-dev` container (see `Dockerfile.rtl8720dn` / `compose.yaml`) provides the
+The `rtl8720dn-dev` container (see `Containerfile.rtl8720dn` / `compose.yaml`) provides the
 arm-none-eabi GCC toolchain, the Realtek AmebaD SDK (cloned to `~/ameba-rtos`), and the
 `ameba_bw16_autoflash` flash tool (cloned to `~/ameba_bw16_autoflash`).
 

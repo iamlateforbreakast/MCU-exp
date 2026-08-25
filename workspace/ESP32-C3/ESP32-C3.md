@@ -1,6 +1,6 @@
 # ESP32-C3 development
 
-The `esp32c3-dev` container (see `Dockerfile.esp32c3` / `compose.yaml`) provides a RISC-V
+The `esp32c3-dev` container (see `Containerfile.esp32c3` / `compose.yaml`) provides a RISC-V
 ESP-IDF toolchain scoped to the ESP32-C3 target.
 
 ## Usage
