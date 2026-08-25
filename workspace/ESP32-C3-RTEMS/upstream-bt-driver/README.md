@@ -1,10 +1,10 @@
 # Linking ESP-IDF's BLE controller into RTEMS's `esp32c3db` BSP
 
-**Status: Phase 1 drafted (`freertos-compat/`, task/queue/semaphore/critical-
-section surface only) - unbuilt, untested, like every other `upstream-*-driver`
-in this repo until it's dropped into a real checkout. Phase 2 onward
-(`esp_intr_alloc`, `esp_timer`, PHY init, the controller/host code itself)
-not started.** This directory tracks integrating ESP-IDF's BLE stack directly
+**Status: Phase 1 drafted in full; Phase 2 partially drafted
+(`esp_timer`/`esp_intr_alloc` shims done, PHY init and the actual BSP
+interrupt-vector patch not started) - unbuilt, untested, like every other
+`upstream-*-driver` in this repo until it's dropped into a real checkout.**
+This directory tracks integrating ESP-IDF's BLE stack directly
 into the RTEMS `esp32c3db` image (single chip, no second-chip HCI-UART bridge).
 Unlike the other `upstream-*-driver/` directories here, this isn't a
 register-level peripheral driver you write from scratch - the actual radio
@@ -57,9 +57,8 @@ unmodified ESP-IDF build. (This is the opposite of what an earlier draft of
 this doc assumed before checking - worth remembering when re-verifying
 against whatever IDF tag is actually used.)
 
-**Corrected architecture (supersedes the original two-shim plan):** there is
-no dynamic "OSI function table" the closed blob calls through. `bt.c` calls
-the real FreeRTOS API directly by name (`xTaskCreatePinnedToCore`,
+**Corrected architecture (supersedes the original two-shim plan):** `bt.c`
+calls the real FreeRTOS API directly by name (`xTaskCreatePinnedToCore`,
 `xQueueSend`, `xSemaphoreTake`, `portENTER_CRITICAL`, etc.) plus a handful of
 ESP-IDF subsystem APIs (`esp_intr_alloc`, `esp_timer_*`, `esp_phy_*`,
 `esp_pm_lock_*`, `esp_ipc_call_blocking`). Since `npl_os_freertos.c` is built
@@ -68,6 +67,22 @@ on that same plain FreeRTOS API, **one shared `freertos-compat/` shim
 compile both `bt.c` and `npl_os_freertos.c` unmodified** - there's no need
 for two separate bespoke shims ("osi-shim" + "npl-rtems") as originally
 sketched.
+
+**Correction, found during Phase 2 recon:** the claim above that there's "no
+dynamic OSI function table" was only half right. `bt.c` does define a
+`struct osi_funcs_t` (`bt.c:155`, populated at `bt.c:349` as
+`osi_funcs_ro`, copied into a heap instance at `bt.c:1399-1404`) and hands
+it to the closed blob - so the blob *does* call through a vtable, exactly
+the pattern originally assumed in Phase 0 before it was (wrongly) walked
+back. What was right: every function `bt.c` puts *into* that table
+(`interrupt_alloc_wrapper`, and presumably the task/queue/semaphore
+wrappers, though those weren't individually re-grepped this session) is
+itself just a thin call into the plain FreeRTOS/`esp_*` API this README
+already tracks - so `freertos-compat` still doesn't need to model the
+vtable's struct layout, only the functions `bt.c`'s own wrappers call. The
+practical consequence: the blob supplies some of its own parameters at
+*runtime* through this vtable rather than `bt.c` naming them statically -
+see the interrupt-source discussion below, which is a direct result of this.
 
 **Confirmed - the exact API surface `bt.c` needs** (extracted by grepping
 every FreeRTOS/`esp_`-prefixed call site in `bt.c`, 31 distinct
@@ -158,31 +173,138 @@ RTEMS `main` source unless noted):
 **Not part of Phase 1** (see "Phase 2 findings" below for why): `esp_intr_alloc`,
 `esp_timer_*`, `esp_phy_*`, `esp_pm_lock_*`, `esp_ipc_call_blocking`.
 
-## Phase 2 findings (recon done, code not started)
+## Phase 2 - `esp_timer`/`esp_intr_alloc` (drafted); PHY init and the BSP
+interrupt-vector patch (not started)
 
-Two things surfaced while researching Phase 1 that reshape Phase 2's scope
-beyond what was originally sketched:
+**What's here, drafted this session:**
+`freertos-compat/include/{esp_err,esp_timer,esp_intr_alloc}.h` +
+`freertos-compat/src/{esp_timer,esp_intr_alloc}.c`. Same unbuilt/untested
+status as Phase 1.
 
-- **`rtems_timer_fire_after`'s callback runs in clock-tick ISR context, not
-  a task** - a mismatch with `esp_timer` callback semantics (IDF's timer
-  callbacks run in a dedicated task and may do more than ISR-safe work).
-  Phase 2 should use `rtems_timer_initiate_server()` +
-  `rtems_timer_server_fire_after()` (task-context dispatch) instead of plain
-  `rtems_timer_fire_after`.
-- **No BT/Wi-Fi interrupt source is defined anywhere in `esp32c3db`'s irq
-  driver today.** `bsps/riscv/esp32/irq/irq_c3.c` /
-  `include/c3/chip_definitions.h` only name 32 of the RISC-V interrupt
-  matrix's 63 possible sources; the unnamed range (matrix sources 0-14) is
-  exactly where the real chip's `BT_MAC_INTR_SOURCE` / `BT_BB_INTR_SOURCE` /
-  `RWBLE_INTR_SOURCE` etc. live. Phase 2's `esp_intr_alloc` shim can't be
-  written until those vector numbers and an `irq_mappings[]` table entry are
-  added first - register-level work in the same vein as
-  `../upstream-gpio-driver/`, needing the same Espressif-header cross-check
-  before trusting the numbers.
-- Tick rate is `CONFIGURE_MICROSECONDS_PER_TICK` (default 10000µs = 100Hz,
-  confirmed in `cpukit/include/rtems/confdefs/clock.h`) - Phase 2's
-  ms→ticks conversion for `esp_timer_start_once` must read this rather than
-  assume 1ms/tick.
+**`esp_timer` mapping** (`esp_timer_create/start_once/stop/delete`, real
+signatures confirmed against `components/esp_timer/include/esp_timer.h` at
+IDF v5.3.1 this session):
+
+| ESP-IDF | RTEMS | Notes |
+| --- | --- | --- |
+| `esp_timer_create` | `rtems_timer_create` | Lazily starts a global `rtems_timer_initiate_server()` on first call (idempotent - a second call returning `RTEMS_INCORRECT_STATE` is treated as already-running, not an error). Rejects `create_args->dispatch_method != ESP_TIMER_TASK` - `ESP_TIMER_ISR` dispatch isn't supported |
+| `esp_timer_start_once` | `rtems_timer_server_fire_after` | Runs the callback in the **timer server task's context**, not clock-tick ISR context (unlike plain `rtems_timer_fire_after` - see Phase 1's finding). `timeout_us`→ticks conversion reads `rtems_clock_get_ticks_per_second()` at runtime rather than assuming a fixed rate |
+| `esp_timer_stop` | `rtems_timer_cancel` | |
+| `esp_timer_delete` | `rtems_timer_delete` | |
+
+`rtems_timer_service_routine_entry`'s exact parameter list
+(`void (*)(rtems_id, void *)`, used by the trampoline in `esp_timer.c`) is
+RTEMS's documented convention but wasn't independently re-grepped against
+source this session - flagged in the code, re-check before trusting it.
+
+**`esp_intr_alloc` mapping** (real signature confirmed against
+`components/esp_hw_support/include/esp_intr_alloc.h`/`esp_intr_types.h` at
+IDF v5.3.1 this session): `esp_intr_alloc`/`esp_intr_free` map onto
+`rtems_interrupt_handler_install`/`_remove` (`RTEMS_INTERRUPT_UNIQUE`, per
+Phase 1's precedent-check against `clockdrv_systimer.c`), using the IDF
+`source` parameter directly as the RTEMS vector number - the same
+convention this BSP's own `irq_mappings[]` table already uses (e.g.
+`GPIO_PROCPU_INTR=16` is both the interrupt-matrix source number and the
+RTEMS vector). `esp_intr_enable`/`esp_intr_disable` map onto
+`rtems_interrupt_vector_enable`/`_disable`, **not independently
+re-confirmed this session** (RTEMS's well-known public vector-enable API,
+but not re-grepped) - flagged in the code.
+
+This mapping is intentionally generic - it doesn't hardcode a BT/Wi-Fi
+vector number, so it compiles without the still-missing BSP patch below.
+It will only actually succeed at runtime once that patch exists; until
+then RTEMS rejects the unrecognized vector at install time.
+
+**Confirmed this session - real ESP32-C3 interrupt-matrix source numbers**
+(`components/soc/esp32c3/include/soc/interrupts.h` at IDF v5.3.1, the
+`interrupt_source_t` enum, values 0-16 - the enum's own comment says "this
+table is decided by hardware, don't touch this"):
+
+```
+0  ETS_WIFI_MAC_INTR_SOURCE
+1  ETS_WIFI_MAC_NMI_SOURCE
+2  ETS_WIFI_PWR_INTR_SOURCE
+3  ETS_WIFI_BB_INTR_SOURCE
+4  ETS_BT_MAC_INTR_SOURCE      ("will be cancelled" per the enum's own doc comment)
+5  ETS_BT_BB_INTR_SOURCE
+6  ETS_BT_BB_NMI_SOURCE
+7  ETS_RWBT_INTR_SOURCE        (classic-BT baseband - C3 has no classic BT)
+8  ETS_RWBLE_INTR_SOURCE       (BLE baseband - best-guess candidate, see below)
+9  ETS_RWBT_NMI_SOURCE
+10 ETS_RWBLE_NMI_SOURCE
+...
+15 ETS_UHCI0_INTR_SOURCE       (= RTEMS's UHCI0_INTR = 15 - numbering matches exactly)
+16 ETS_GPIO_INTR_SOURCE        (= RTEMS's GPIO_PROCPU_INTR = 16 - confirms the two enumerations are the same numbering)
+```
+
+Sources 15/16 lining up exactly with RTEMS's existing `UHCI0_INTR`/
+`GPIO_PROCPU_INTR` values confirms these are literally the same
+interrupt-matrix numbering RTEMS's `chip_definitions.h` already (partially)
+uses - so sources 4-10 above are the direct `#define` values a BSP patch
+would add, not numbers needing further translation.
+
+**Not fully confirmed - which specific source `bt.c`'s blob requests at
+runtime.** `bt.c` itself never names the interrupt source constant (grepped
+`interrupt_alloc_wrapper()`, `bt.c:495`): `source` is a plain `int` the
+*closed blob* supplies at runtime through the `osi_funcs_t.interrupt_alloc`
+callback (see the `osi_funcs_t` correction above) - it isn't visible in
+open source at all. Best-guess candidate: **`ETS_RWBLE_INTR_SOURCE` (8)** -
+"RWBLE" (RivieraWaves BLE IP) directly matches ESP32-C3 being BLE-only, its
+doc comment carries no deprecation caveat unlike `BT_MAC_INTR_SOURCE`'s
+"will be cancelled", and `RWBT`/`BT_MAC` read as classic-BT-only
+identifiers this chip shouldn't need. This is reasoned inference, not a
+runtime-confirmed fact - the real value can only be confirmed once Phase 3
+can actually run the blob (e.g. logging whichever `source` value arrives at
+a real `esp_intr_alloc`) or by disassembling `libbtdm_app.a` (out of
+scope). The BSP patch below should define all of sources 4-10, not just 8,
+since the exact runtime value isn't nailed down.
+
+**Not started - the actual BSP patch**: `esp32c3db`'s
+`bsps/riscv/esp32/irq/irq_c3.c` `irq_mappings[]` table
+(`{ .peripheral_int = <source>, .cpu_int = <1-31> }`) has all 31 `cpu_int`
+lines already assigned to existing peripherals - but per this session's
+recon of the table itself, **sharing a `cpu_int` line is an existing,
+working pattern** (`SW_INTR_0..3` all share `cpu_int=1`,
+`EFUSE_INTR`+`LEDC_INTR` share `7`, `TG_WDT_INTR`+`TG1_WDT_INTR` share
+`14`) - the dispatch code resolves interrupts down to the individual
+peripheral source by scanning the interrupt-matrix status register, not
+just the shared `cpu_int` line, so a new BT entry doesn't need a free line.
+Still needs doing: add `#define`s for sources 4-10 to
+`chip_definitions.h` and an `irq_mappings[]` entry (sharing a `cpu_int`
+already assigned to a low-frequency source) - register-level work in the
+same vein as `../upstream-gpio-driver/`.
+
+**Not started - PHY init.** Real signatures confirmed this session
+(`components/esp_phy/include/esp_phy_init.h`, `src/phy_init.c` at IDF
+v5.3.1): `void esp_phy_enable(esp_phy_modem_t modem)` /
+`esp_phy_disable(esp_phy_modem_t modem)` (bt.c passes `PHY_MODEM_BT = 2`),
+`void esp_phy_modem_init(void)` / `esp_phy_modem_deinit(void)`. Confirmed
+the "no NVS" path works exactly as Phase 1 assumed: with
+`CONFIG_ESP_PHY_CALIBRATION_AND_DATA_STORAGE` undefined,
+`esp_phy_load_cal_and_init()` (called internally by `esp_phy_enable()` on
+first enable) skips NVS entirely and calls
+`register_chipv7_phy(init_data, cal_data, PHY_RF_CAL_FULL)` directly; with
+`CONFIG_ESP_PHY_INIT_DATA_IN_PARTITION` also off (default), `init_data`
+comes from a **compiled-in static default array**
+(`esp_phy_get_init_data()` returns `&phy_init_data`, declared by
+`phy_init_data.h`), not a flash partition - so this genuinely needs zero
+NVS/partition support, confirming Phase 0's assumption.
+
+**Scope grew, though**: tracing `esp_phy_enable()`'s real call graph
+surfaced dependencies beyond the 4 functions originally scoped - a newlib
+recursive lock (`_lock_acquire`/`_lock_release`, likely already available
+via RTEMS's own newlib integration, not yet checked), an
+`esp_deep_sleep_register_phy_hook()` call (a whole subsystem not
+scoped at all yet), and internal `phy_track_pll`/antenna-management calls
+that appear to live inside the closed PHY library itself rather than
+needing an RTEMS-side shim. This makes PHY init a bigger unknown than
+`esp_timer`/`esp_intr_alloc` turned out to be - worth a recon pass of its
+own before attempting it, rather than folding it into the same push.
+
+Tick rate used by `esp_timer.c`'s ms→ticks conversion:
+`CONFIGURE_MICROSECONDS_PER_TICK` (default 10000µs = 100Hz, confirmed in
+`cpukit/include/rtems/confdefs/clock.h` during Phase 1's recon) - read at
+runtime via `rtems_clock_get_ticks_per_second()`, not assumed.
 
 ## Architecture
 
@@ -215,13 +337,16 @@ section above for the mapping table, exact files, and open risks. This was
 the bulk of the well-grounded work, since both the controller and (later)
 the NimBLE host build on it unmodified.
 
-**Phase 2 - `esp_intr_alloc`/`esp_timer`/PHY-init (not started - recon
-done).** Wire `esp_intr_alloc` to the BSP's existing RISC-V irq driver
-(blocked on adding the missing BT/Wi-Fi interrupt vector numbers first -
-see "Phase 2 findings" above), `esp_timer_*` to a new `rtems_timer_server`
-task (not plain `rtems_timer_fire_after` - see "Phase 2 findings"), and PHY
-init with `ESP_PHY_CALIBRATION_AND_DATA_STORAGE=n` (full calibration every
-boot, no NVS needed).
+**Phase 2 - `esp_intr_alloc`/`esp_timer` (drafted) + PHY-init/BSP vector
+patch (not started).** `esp_timer_*` maps onto a new `rtems_timer_server`
+task (not plain `rtems_timer_fire_after`); `esp_intr_alloc` maps onto the
+BSP's existing RISC-V irq driver generically, but doesn't work end-to-end
+yet - it's still blocked on adding the actual BT/Wi-Fi interrupt vector
+numbers to `chip_definitions.h`/`irq_mappings[]` first. PHY init
+(`ESP_PHY_CALIBRATION_AND_DATA_STORAGE=n`, full calibration every boot, no
+NVS needed) turned out to need more than the 4 originally-scoped functions
+once its real call graph was traced - see the "Phase 2" section above for
+all of this in detail.
 
 **Phase 3 - controller-only smoke test (hard go/no-go gate):** vendor
 `bt.c` + link `libbtdm_app.a` against the Phase 1/2 shim, and verify a

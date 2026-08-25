@@ -105,12 +105,13 @@ tracks linking ESP-IDF's BLE controller directly into this BSP - vendoring
 the open `bt.c` controller frontend and ESP-IDF's Apache-2.0-licensed
 prebuilt `libbtdm_app.a` against a new `freertos-compat` shim, rather than a
 from-scratch register-level driver like the peripherals above. Phase 1
-(`freertos-compat/`'s task/queue/semaphore/critical-section surface) is
-drafted - unbuilt, untested, same status as the other `upstream-*-driver`
-directories until dropped into a real checkout. Phase 2 onward
-(`esp_intr_alloc`, `esp_timer`, PHY init, then the controller/host code
-itself) hasn't started. See that doc for the full mapping table, Phase 0/2
-recon findings, and phased plan.
+(task/queue/semaphore/critical-section) and part of Phase 2
+(`esp_timer`/`esp_intr_alloc`) are drafted - unbuilt, untested, same status
+as the other `upstream-*-driver` directories until dropped into a real
+checkout. Still not started: the actual BT/Wi-Fi interrupt-vector BSP patch
+`esp_intr_alloc` depends on to work end-to-end, PHY init, and the
+controller/host code itself. See that doc for the full mapping table, real
+ESP32-C3 interrupt-source numbers, and phased plan.
 
 ## Flashing and monitoring
 
