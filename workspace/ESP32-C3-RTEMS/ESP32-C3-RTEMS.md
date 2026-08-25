@@ -101,13 +101,16 @@ the driver README for the exact steps. Still untested against real hardware.
 ## Bluetooth (BLE)
 
 `esp32c3db` has no Bluetooth driver of any kind. `upstream-bt-driver/README.md`
-is a design doc (no shim code yet) for linking ESP-IDF's BLE controller
-directly into this BSP - vendoring the open `bt.c` controller frontend and
-ESP-IDF's Apache-2.0-licensed prebuilt `libbtdm_app.a` against a new
-`freertos-compat` shim, rather than a from-scratch register-level driver like
-the peripherals above. See that doc for the Phase 0 recon findings (exact
-FreeRTOS API surface needed, PHY calibration approach, licensing) and the
-phased plan.
+tracks linking ESP-IDF's BLE controller directly into this BSP - vendoring
+the open `bt.c` controller frontend and ESP-IDF's Apache-2.0-licensed
+prebuilt `libbtdm_app.a` against a new `freertos-compat` shim, rather than a
+from-scratch register-level driver like the peripherals above. Phase 1
+(`freertos-compat/`'s task/queue/semaphore/critical-section surface) is
+drafted - unbuilt, untested, same status as the other `upstream-*-driver`
+directories until dropped into a real checkout. Phase 2 onward
+(`esp_intr_alloc`, `esp_timer`, PHY init, then the controller/host code
+itself) hasn't started. See that doc for the full mapping table, Phase 0/2
+recon findings, and phased plan.
 
 ## Flashing and monitoring
 
