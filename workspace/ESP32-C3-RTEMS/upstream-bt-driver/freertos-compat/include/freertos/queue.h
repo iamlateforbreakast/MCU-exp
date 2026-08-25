@@ -28,4 +28,6 @@ BaseType_t xQueueSendFromISR(QueueHandle_t xQueue, const void *pvItemToQueue, Ba
 BaseType_t xQueueReceive(QueueHandle_t xQueue, void *pvBuffer, TickType_t xTicksToWait);
 BaseType_t xQueueReceiveFromISR(QueueHandle_t xQueue, void *pvBuffer, BaseType_t *pxHigherPriorityTaskWoken);
 
+void vQueueDelete(QueueHandle_t xQueue);
+
 #endif /* FREERTOS_COMPAT_QUEUE_H */

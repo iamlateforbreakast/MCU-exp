@@ -14,6 +14,7 @@
  * cross-core exclusion - see portmacro.h.
  */
 #include "freertos/portmacro.h"
+#include <rtems/rtems/intr.h>
 
 void freertos_compat_enter_critical(portMUX_TYPE *mux)
 {
@@ -29,4 +30,9 @@ void freertos_compat_exit_critical(portMUX_TYPE *mux)
     if (mux->nesting == 0) {
         rtems_interrupt_enable(mux->level);
     }
+}
+
+BaseType_t xPortInIsrContext(void)
+{
+    return rtems_interrupt_is_in_progress() ? pdTRUE : pdFALSE;
 }

@@ -37,7 +37,24 @@ everything, not just `lock.c`, after the change) and appends the `_lock_t`
 API on top. Relies on `-Iinclude` being searched before the BSP's
 `-isystem` path, which GCC does unconditionally regardless of flag order -
 already this repo's own convention, but now load-bearing for correctness,
-not just header-organization. This
+not just header-organization.
+
+**Major milestone, same session (2026-08-25): `bt.c` itself is now vendored
+and compiles clean.** See `vendor/README.md` for the full detail - summary:
+`bt.c`/`esp_bt.h` and ~25 transitively-required ESP-IDF headers (pure
+declarations/macros, no C source beyond `bt.c` itself) are vendored in
+`vendor/`, and compiling `bt.c` against the real toolchain for the first
+time found three more real, confirmed bugs in `freertos-compat`
+(`SemaphoreHandle_t`/`TaskHandle_t` needed to be pointer types, not bare
+`rtems_id`, plus several missing FreeRTOS/port functions) - all fixed.
+`libbtdm_app.a` (the closed blob) was fetched and real `nm`-cross-checked
+against `bt.o`'s needs (the step Phase 0/3 could only postpone until now) -
+92% of what the blob needs is confirmed satisfiable via real ESP-IDF ROM
+linker scripts, 14 symbols remain genuinely unresolved. Not linked yet, and
+still no NimBLE/esp_phy source vendored - see `vendor/README.md`'s "Not
+vendored / still open" for the honest remaining list.
+
+This
 directory tracks integrating ESP-IDF's BLE stack directly
 into the RTEMS `esp32c3db` image (single chip, no second-chip HCI-UART bridge).
 Unlike the other `upstream-*-driver/` directories here, this isn't a

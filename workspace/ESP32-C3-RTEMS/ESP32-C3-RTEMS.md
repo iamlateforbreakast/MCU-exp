@@ -107,26 +107,26 @@ prebuilt `libbtdm_app.a` against a new `freertos-compat` shim, rather than a
 from-scratch register-level driver like the peripherals above. Phase 1 and
 Phase 2 (task/queue/semaphore/critical-section, `esp_timer`, `esp_intr_alloc`,
 the BT/Wi-Fi interrupt-vector BSP patch in `upstream-bt-driver/bsp-patch/`,
-and PHY init's supporting shims) are drafted. **Build-confirmed 2026-08-25**
-in `esp32c3-rtems-dev`: the BSP patch applies and builds clean, and all 8
-`freertos-compat` source files now compile clean against the real
-toolchain/BSP headers - `esp_timer.c` and `lock.c` needed a missing
-`#include` each, and `lock.c` also needed a new `sys/lock.h` in the shim
-(the toolchain's own doesn't declare the `_lock_t`/`_lock_acquire()` API
-`lock.c` assumed) that `#include_next`s the real header rather than
-replacing it. There is still no vendored `bt.c`/NimBLE source,
-no fetched `libbtdm_app.a`, and no example app, so nothing BLE-related can
-actually build or run on hardware yet. Phase 3 (the controller-only hardware
-smoke test) has its API recon done, and its Kconfig-macro blocker is now
-resolved too: `bt.c` needs 43 Kconfig-generated `CONFIG_*` macros a real
-ESP-IDF build gets for free from menuconfig (not ~45 - two of the
-originally-estimated names turned out not to be real symbols at all), now
-supplied by `upstream-bt-driver/sdkconfig-compat.h`, each value confirmed
-against real ESP-IDF v5.3.1 Kconfig source. Still can't actually run
-without real ESP32-C3 hardware, and `bt.c`/NimBLE/the blob still aren't
-vendored in, so Phase 3's smoke-test app itself isn't drafted yet. See
-`upstream-bt-driver/README.md` for the full mapping table, real ESP32-C3
-interrupt-source numbers, and phased plan.
+and PHY init's supporting shims) are drafted and build-confirmed against the
+real toolchain/BSP headers in `esp32c3-rtems-dev` - see
+`upstream-bt-driver/README.md`'s status header for the exact fixes that
+took. The Kconfig-macro gap Phase 3 originally hit is resolved too:
+`upstream-bt-driver/sdkconfig-compat.h` supplies all 43 `CONFIG_*` macros
+`bt.c` needs (not ~45 - two of the original estimate weren't real symbols),
+each confirmed against real ESP-IDF v5.3.1 Kconfig source.
+
+**`bt.c` itself is now vendored and compiles clean too (2026-08-25)** -
+`upstream-bt-driver/vendor/` has `bt.c`/`esp_bt.h` plus ~25 transitively
+required ESP-IDF headers, and compiling it for the first time found (and
+fixed) three more real bugs in `freertos-compat`. `libbtdm_app.a` (the
+closed blob) was fetched and `nm`-cross-checked against what `bt.o` actually
+needs: 92% of the blob's own external requirements are confirmed satisfiable
+via real ESP-IDF ROM linker scripts, 14 symbols remain genuinely
+unresolved. Not linked yet - no NimBLE host source, no ROM linker-script
+integration, and no example app, so nothing BLE-related runs on hardware
+yet. See `upstream-bt-driver/vendor/README.md` for the full build recipe
+and exact remaining-work list, and `upstream-bt-driver/README.md` for the
+full mapping table, real ESP32-C3 interrupt-source numbers, and phased plan.
 
 ## Flashing and monitoring
 

@@ -76,3 +76,12 @@ BaseType_t xQueueReceiveFromISR(QueueHandle_t xQueue, void *pvBuffer, BaseType_t
     rtems_status_code sc = rtems_message_queue_receive(xQueue->id, pvBuffer, &size, RTEMS_NO_WAIT, RTEMS_NO_TIMEOUT);
     return (sc == RTEMS_SUCCESSFUL) ? pdTRUE : pdFALSE;
 }
+
+void vQueueDelete(QueueHandle_t xQueue)
+{
+    if (xQueue == NULL) {
+        return;
+    }
+    rtems_message_queue_delete(xQueue->id);
+    free(xQueue);
+}

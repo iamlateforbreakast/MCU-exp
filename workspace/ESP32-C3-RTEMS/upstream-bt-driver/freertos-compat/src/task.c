@@ -97,34 +97,60 @@ BaseType_t xTaskCreatePinnedToCore(
     args->pxTaskCode   = pxTaskCode;
     args->pvParameters = pvParameters;
 
-    rtems_id id;
+    rtems_id *handle = malloc(sizeof(*handle));
+    if (handle == NULL) {
+        free(args);
+        return pdFAIL;
+    }
+
     rtems_status_code sc = rtems_task_create(
         freertos_compat_task_name(pcName),
         freertos_compat_invert_priority(uxPriority),
         (size_t) usStackDepth, /* ESP-IDF's usStackDepth is bytes, same unit RTEMS expects - unlike vanilla FreeRTOS, which counts words */
         RTEMS_DEFAULT_MODES,
         RTEMS_DEFAULT_ATTRIBUTES | RTEMS_FLOATING_POINT,
-        &id
+        handle
     );
     if (sc != RTEMS_SUCCESSFUL) {
+        free(handle);
         free(args);
         return pdFAIL;
     }
 
-    sc = rtems_task_start(id, freertos_compat_task_trampoline, (rtems_task_argument) args);
+    sc = rtems_task_start(*handle, freertos_compat_task_trampoline, (rtems_task_argument) args);
     if (sc != RTEMS_SUCCESSFUL) {
-        rtems_task_delete(id);
+        rtems_task_delete(*handle);
+        free(handle);
         free(args);
         return pdFAIL;
     }
 
     if (pxCreatedTask != NULL) {
-        *pxCreatedTask = id;
+        *pxCreatedTask = handle;
+    } else {
+        /*
+         * Caller doesn't want the handle back - nothing will ever call
+         * vTaskDelete() on it to free this allocation, so this leaks
+         * sizeof(rtems_id) once per such task. Not believed to matter for
+         * bt.c (which always passes a real out-param, grepped), flagged
+         * for whoever vendors a caller that doesn't.
+         */
+        free(handle);
     }
     return pdPASS;
 }
 
 void vTaskDelete(TaskHandle_t xTaskToDelete)
 {
-    rtems_task_delete(xTaskToDelete == 0 ? RTEMS_SELF : xTaskToDelete);
+    if (xTaskToDelete == NULL) {
+        rtems_task_delete(RTEMS_SELF);
+        return;
+    }
+    rtems_task_delete(*xTaskToDelete);
+    free(xTaskToDelete);
+}
+
+void vPortYield(void)
+{
+    rtems_task_wake_after(RTEMS_YIELD_PROCESSOR);
 }
