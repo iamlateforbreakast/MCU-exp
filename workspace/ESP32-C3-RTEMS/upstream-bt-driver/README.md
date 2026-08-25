@@ -1,13 +1,16 @@
 # Linking ESP-IDF's BLE controller into RTEMS's `esp32c3db` BSP
 
-**Status: Phase 1 drafted in full; Phase 2 drafted in full (`esp_timer`
+**Status: Phase 1 and Phase 2 drafted in full (`esp_timer`
 +`esp_timer_start_periodic`, `esp_intr_alloc`, the BSP interrupt-vector
 patch in `bsp-patch/`, and PHY init's supporting shims - `_lock_*`,
-`esp_deep_sleep_register_phy_hook`, `portENTER/EXIT_CRITICAL_SAFE` - all
-done; vendoring `esp_phy`'s own real source and the register-level PHY
-clock-enable work are the two things still open) - unbuilt, untested, like
-every other `upstream-*-driver` in this repo until it's dropped into a real
-checkout.** This directory tracks integrating ESP-IDF's BLE stack directly
+`esp_deep_sleep_register_phy_hook`, `portENTER/EXIT_CRITICAL_SAFE`;
+vendoring `esp_phy`'s own real source and the register-level PHY
+clock-enable work are the two things still open there) - unbuilt, untested,
+like every other `upstream-*-driver` in this repo until it's dropped into a
+real checkout. Phase 3 (the hardware smoke test) has its API recon done,
+but hit a real new blocker before an actual test app could be drafted -
+see Phase 3 below - and can't be run in this sandbox regardless (no
+ESP32-C3 hardware).** This directory tracks integrating ESP-IDF's BLE stack directly
 into the RTEMS `esp32c3db` image (single chip, no second-chip HCI-UART bridge).
 Unlike the other `upstream-*-driver/` directories here, this isn't a
 register-level peripheral driver you write from scratch - the actual radio
@@ -417,14 +420,72 @@ is now drafted too - see the "Phase 2" section above for all of this in
 detail, including the two pieces still open (vendoring `esp_phy`'s own real
 source, and the register-level PHY clock-enable work).
 
-**Phase 3 - controller-only smoke test (hard go/no-go gate):** vendor
-`bt.c` + link `libbtdm_app.a` against the Phase 1/2 shim, and verify a
-minimal VHCI loopback - send an HCI Reset command via
-`esp_vhci_host_send_packet`, confirm a valid HCI Command Complete event comes
-back on real hardware. Also run `riscv32-esp-elf-nm -u` on the real
-`libbtdm_app.a` at this point and diff against the Phase 1/2 shim's exported
-symbols, to close the "not yet done" recon gap above before trusting
-anything past this point.
+**Phase 3 - controller-only smoke test (hard go/no-go gate). Recon done
+this session; a real new blocker was found before the smoke-test app can
+even be drafted, let alone run.** The plan: vendor `bt.c` + link
+`libbtdm_app.a` against the Phase 1/2 shim, and verify a minimal VHCI
+loopback - send an HCI Reset command via `esp_vhci_host_send_packet`,
+confirm a valid HCI Command Complete event comes back **on real hardware**
+(this repo's sandbox has none - see "What this session could and couldn't
+do" below). Also run `riscv32-esp-elf-nm -u` on the real `libbtdm_app.a` at
+this point and diff against the shim's exported symbols, to close the "not
+yet done" recon gap from Phase 0/2 before trusting anything past this
+point.
+
+**Confirmed this session - the actual VHCI/controller-init API**
+(`components/bt/include/esp32c3/include/esp_bt.h` at IDF v5.3.1, small and
+clean):
+```c
+typedef struct {
+    void (*notify_host_send_available)(void);
+    int  (*notify_host_recv)(uint8_t *data, uint16_t len);
+} esp_vhci_host_callback_t;
+
+bool     esp_vhci_host_check_send_available(void);
+void     esp_vhci_host_send_packet(uint8_t *data, uint16_t len);
+esp_err_t esp_vhci_host_register_callback(const esp_vhci_host_callback_t *callback);
+
+esp_err_t esp_bt_controller_init(esp_bt_controller_config_t *cfg);
+esp_err_t esp_bt_controller_enable(esp_bt_mode_t mode);
+```
+
+**New blocker found - Kconfig-generated config surface, not just OS-API
+surface.** `esp_bt_controller_config_t`'s default-init macro
+(`BT_CONTROLLER_INIT_CONFIG_DEFAULT()`) and `bt.c` itself reference **~45
+distinct `CONFIG_*` macros** (`CONFIG_BT_CTRL_MODE_EFF`,
+`CONFIG_BT_CTRL_BLE_MAX_ACT_EFF`, `CONFIG_ESP_PHY_ENABLED`,
+`CONFIG_FREERTOS_UNICORE`, etc. - grepped directly, not estimated) that a
+real ESP-IDF build gets for free from Kconfig/menuconfig, generated into
+`sdkconfig.h`. Vendoring `bt.c`/`esp_bt.h` into an RTEMS build with no
+Kconfig system at all means **none of these exist** unless something
+provides them - this is a genuinely new category of missing surface (build
+configuration, not an OS API to shim) that nothing in Phase 0-2 accounted
+for. Some are easy (simple feature-select booleans like
+`CONFIG_BT_NIMBLE_ENABLED` - define it, leave `CONFIG_BT_BLUEDROID_ENABLED`
+undefined; several like `CONFIG_ESP_COEX_ENABLED`/`CONFIG_PM_ENABLE`/
+`CONFIG_SW_COEXIST_ENABLE` can likely stay undefined entirely to collapse
+those `#ifdef`-guarded code paths away for a minimal BLE-only,
+no-coexistence, no-power-management smoke test), but each needs checking
+against IDF's real Kconfig defaults for an esp32c3+NimBLE+BLE-only
+configuration before assuming a value - not attempted this session, to
+avoid fabricating ~45 values without checking them the way every other
+number in this README has been checked. This is real, sizable follow-up
+work in its own right (a `sdkconfig-compat.h`-style header), comparable in
+scope to what `freertos-compat/` itself took - not something to fold into
+a quick pass.
+
+**What this session could and couldn't do:** this sandbox has no ESP32-C3
+hardware, no built RTEMS toolchain, and (per the finding above) not yet
+enough of a build-configuration surface to compile `bt.c` at all - so
+Phase 3's actual smoke-test application wasn't drafted this pass, to avoid
+writing code that couldn't actually build as described. What *was* done:
+confirming the real VHCI/controller-init API above (so the eventual
+smoke-test app's structure is grounded in real signatures, not guessed),
+and surfacing the Kconfig-surface blocker before it could silently
+undermine a drafted-but-uncompilable smoke test. The actual go/no-go
+hardware test - and everything after it (Phase 4/5) - stays exactly what
+it always was: something only real hardware and a real RTEMS checkout can
+verify, not something this environment can simulate or claim.
 
 **Phase 4 - NimBLE host:** vendor `components/bt/host/nimble` (portable C)
 and `npl_os_freertos.c` unmodified, on top of the working VHCI transport from

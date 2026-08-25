@@ -109,10 +109,12 @@ Phase 2 (task/queue/semaphore/critical-section, `esp_timer`, `esp_intr_alloc`,
 the BT/Wi-Fi interrupt-vector BSP patch in `upstream-bt-driver/bsp-patch/`,
 and PHY init's supporting shims) are drafted - unbuilt, untested, same
 status as the other `upstream-*-driver` directories until dropped into a
-real checkout. Still open: vendoring `esp_phy`'s own real source, one
-remaining register-level PHY clock-enable item, and Phase 3 onward (the
-actual controller-only hardware smoke test, then the host stack and an
-example app). See that doc for the full mapping table, real ESP32-C3
+real checkout. Phase 3 (the controller-only hardware smoke test) has its
+API recon done but hit a real blocker first - vendoring `bt.c` needs ~45
+Kconfig-generated `CONFIG_*` macros a real ESP-IDF build gets for free from
+menuconfig, which nothing before this point accounted for - and can't
+actually run without real ESP32-C3 hardware regardless, which this sandbox
+doesn't have. See that doc for the full mapping table, real ESP32-C3
 interrupt-source numbers, and phased plan.
 
 ## Flashing and monitoring
