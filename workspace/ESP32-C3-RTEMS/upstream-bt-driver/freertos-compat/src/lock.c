@@ -1,11 +1,20 @@
 /*
  * newlib's standard retargetable-locking API (`_lock_t`/`_lock_acquire`/
- * `_lock_release`/etc., declared by the toolchain's own real
- * `<sys/lock.h>` when built with `_RETARGETABLE_LOCKING` - NOT a header
- * this shim provides itself, to avoid shadowing the toolchain's real one).
- * PHY init needs this: `esp_phy_enable()`'s `s_phy_access_lock` (real
- * ESP-IDF `components/esp_phy/src/phy_init.c`) is a plain `_lock_t` used
- * via `_lock_acquire`/`_lock_release`.
+ * `_lock_release`/etc.) - declared by `../include/sys/lock.h` in this
+ * shim, NOT by the toolchain's own `<sys/lock.h>`. PHY init needs this:
+ * `esp_phy_enable()`'s `s_phy_access_lock` (real ESP-IDF
+ * `components/esp_phy/src/phy_init.c`) is a plain `_lock_t` used via
+ * `_lock_acquire`/`_lock_release`.
+ *
+ * Confirmed 2026-08-25 (compiling against the real riscv-rtems7-gcc +
+ * installed esp32c3db BSP in esp32c3-rtems-dev): this toolchain's real
+ * `<sys/lock.h>` does NOT declare `_lock_t`/`_lock_acquire()` at all - it
+ * implements a different, RTEMS-specific mechanism instead (`_LOCK_T`/
+ * `__lock_acquire` macros over `struct _Mutex_Control`), confirming the
+ * risk this comment used to flag as unverified. So this shim now ships
+ * its own `sys/lock.h` (see that file's header comment for why shadowing
+ * the toolchain's version is safe here) rather than relying on the
+ * toolchain to already provide the type this file implements against.
  *
  * Confirmed this session: RTEMS's own cpukit does NOT implement this API
  * (grepped `_lock_acquire`/`_RETARGETABLE_LOCKING` across
@@ -14,15 +23,7 @@
  * `rtems_termios_device_lock_acquire`), so this shim is genuinely needed,
  * not redundant with something RTEMS already provides.
  *
- * NOT confirmed: whether the actual `riscv-rtems7-*` toolchain built by
- * `Containerfile.esp32c3-rtems` (via rtems-source-builder, not part of
- * RTEMS's own source tree this session's recon could reach) enables
- * `_RETARGETABLE_LOCKING` in its newlib build at all - if it doesn't,
- * these symbol names may not be the toolchain's actual retarget point.
- * Modern (newlib >=4.x) RSB-built toolchains commonly do enable it, but
- * this needs checking against the real built toolchain, not assumed.
- *
- * Also NOT confirmed: whether real ESP-IDF code explicitly calls
+ * NOT confirmed: whether real ESP-IDF code explicitly calls
  * `_lock_init()` on statically-declared locks like `s_phy_access_lock`
  * (`static _lock_t s_phy_access_lock;`, presumably zero/NULL-initialized)
  * before first use, or relies on newlib's common lazy-init-on-first-acquire
@@ -38,6 +39,7 @@
  */
 #include <sys/lock.h>
 #include <rtems/rtems/sem.h>
+#include <rtems/rtems/object.h>
 #include <stdlib.h>
 
 /*

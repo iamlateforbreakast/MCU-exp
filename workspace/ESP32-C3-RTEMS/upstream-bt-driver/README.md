@@ -13,25 +13,30 @@ be run in this sandbox regardless (no ESP32-C3 hardware).
 **Build-confirmed 2026-08-25** (`esp32c3-rtems-dev` container, real
 `riscv-rtems7-gcc` against the real installed `esp32c3db` BSP headers, after
 applying `bsp-patch/` to a fresh RTEMS `main` checkout and `./waf install`ing
-it - see `bsp-patch/README.md`): `critical.c`, `esp_intr_alloc.c`,
-`esp_sleep.c`, `queue.c`, `semphr.c`, and `task.c` all compile clean with
-`-Wall -Wextra`, no changes needed. `esp_timer.c` needed one real fix (was
-missing `#include <rtems/rtems/object.h>` for `rtems_build_name` - now
-fixed). **`lock.c` does not compile and is a confirmed real blocker**, not
-speculative: this toolchain's own `<sys/lock.h>`
+it - see `bsp-patch/README.md`): all 8 `freertos-compat/src/*.c` files
+compile clean with `-Wall -Wextra`. `critical.c`, `esp_intr_alloc.c`,
+`esp_sleep.c`, `queue.c`, `semphr.c`, and `task.c` needed no changes.
+`esp_timer.c` and `lock.c` each needed a missing
+`#include <rtems/rtems/object.h>` for `rtems_build_name` (now fixed).
+
+`lock.c` also hit a real, confirmed blocker beyond the missing include:
+this toolchain's own `<sys/lock.h>`
 (`$RTEMS_ROOT/riscv-rtems7/include/sys/lock.h`) does not declare the
 `_lock_t`/`_lock_acquire()`-style FreeBSD/newlib-upstream retargetable-locking
 API this shim assumed it would (per the file's own "not confirmed" comment,
 now resolved). Instead it defines an entirely different mechanism -
 `_LOCK_T` typedef'd to `struct _Mutex_Control`, `__lock_acquire`/
 `__lock_release` macros wrapping RTEMS's own `_Mutex_Acquire`/`_Mutex_Release`
-directly - so `lock.c` as drafted has no toolchain declaration of `_lock_t`
-to implement against. Fixing this is a real design decision (most likely:
-the shim needs to supply its own `_lock_t` typedef/declarations rather than
-relying on the toolchain header to already have them, which changes this
-file's public contract) rather than a quick patch, and wasn't attempted
-here - PHY init (which is what actually calls `_lock_acquire`) isn't vendored
-yet either, so nothing downstream depends on this compiling today. This
+directly. Fixed by adding `freertos-compat/include/sys/lock.h`, which
+`#include_next`s the toolchain's real `<sys/lock.h>` (needed transitively by
+newlib's own `sys/reent.h` for `_LOCK_RECURSIVE_T` - a first attempt at
+wholesale-replacing the header instead of extending it broke every file
+that includes `stdlib.h`/`time.h`, a real mistake caught by recompiling
+everything, not just `lock.c`, after the change) and appends the `_lock_t`
+API on top. Relies on `-Iinclude` being searched before the BSP's
+`-isystem` path, which GCC does unconditionally regardless of flag order -
+already this repo's own convention, but now load-bearing for correctness,
+not just header-organization. This
 directory tracks integrating ESP-IDF's BLE stack directly
 into the RTEMS `esp32c3db` image (single chip, no second-chip HCI-UART bridge).
 Unlike the other `upstream-*-driver/` directories here, this isn't a

@@ -108,12 +108,13 @@ from-scratch register-level driver like the peripherals above. Phase 1 and
 Phase 2 (task/queue/semaphore/critical-section, `esp_timer`, `esp_intr_alloc`,
 the BT/Wi-Fi interrupt-vector BSP patch in `upstream-bt-driver/bsp-patch/`,
 and PHY init's supporting shims) are drafted. **Build-confirmed 2026-08-25**
-in `esp32c3-rtems-dev`: the BSP patch applies and builds clean, and 6 of 7
-`freertos-compat` source files compile clean against the real toolchain/BSP
-headers (one, `esp_timer.c`, needed a one-line missing-include fix, now
-applied); `lock.c` hit a confirmed real blocker - this toolchain's newlib
-doesn't expose the `_lock_t`/`_lock_acquire()` API the shim assumed, needing
-a design fix, not yet done. There is still no vendored `bt.c`/NimBLE source,
+in `esp32c3-rtems-dev`: the BSP patch applies and builds clean, and all 8
+`freertos-compat` source files now compile clean against the real
+toolchain/BSP headers - `esp_timer.c` and `lock.c` needed a missing
+`#include` each, and `lock.c` also needed a new `sys/lock.h` in the shim
+(the toolchain's own doesn't declare the `_lock_t`/`_lock_acquire()` API
+`lock.c` assumed) that `#include_next`s the real header rather than
+replacing it. There is still no vendored `bt.c`/NimBLE source,
 no fetched `libbtdm_app.a`, and no example app, so nothing BLE-related can
 actually build or run on hardware yet. Phase 3 (the controller-only hardware
 smoke test) has its API recon done but hit a real blocker first - vendoring
