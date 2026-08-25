@@ -98,6 +98,25 @@ build and isn't persisted, that integration currently needs to be re-applied
 per-container (or land in `Containerfile.esp32c3-rtems`/upstream) until then - see
 the driver README for the exact steps. Still untested against real hardware.
 
+## Bluetooth (BLE)
+
+`esp32c3db` has no Bluetooth driver of any kind. `upstream-bt-driver/README.md`
+tracks linking ESP-IDF's BLE controller directly into this BSP - vendoring
+the open `bt.c` controller frontend and ESP-IDF's Apache-2.0-licensed
+prebuilt `libbtdm_app.a` against a new `freertos-compat` shim, rather than a
+from-scratch register-level driver like the peripherals above. Phase 1 and
+Phase 2 (task/queue/semaphore/critical-section, `esp_timer`, `esp_intr_alloc`,
+the BT/Wi-Fi interrupt-vector BSP patch in `upstream-bt-driver/bsp-patch/`,
+and PHY init's supporting shims) are drafted - unbuilt, untested, same
+status as the other `upstream-*-driver` directories until dropped into a
+real checkout. Phase 3 (the controller-only hardware smoke test) has its
+API recon done but hit a real blocker first - vendoring `bt.c` needs ~45
+Kconfig-generated `CONFIG_*` macros a real ESP-IDF build gets for free from
+menuconfig, which nothing before this point accounted for - and can't
+actually run without real ESP32-C3 hardware regardless, which this sandbox
+doesn't have. See that doc for the full mapping table, real ESP32-C3
+interrupt-source numbers, and phased plan.
+
 ## Flashing and monitoring
 
 The BSP boots directly from flash via the ESP32-C3's direct-boot header (no 2nd
