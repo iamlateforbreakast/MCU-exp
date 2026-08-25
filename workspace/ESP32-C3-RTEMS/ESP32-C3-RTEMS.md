@@ -67,6 +67,22 @@ whatever `*esp32c3db*.pc` file the BSP install actually produced and derives
 fails with a pointer to run `find $RTEMS_ROOT -name '*.pc'` yourself to see what's
 actually installed.
 
+**`examples/dmips_benchmark` - confirmed working on real hardware**: runs the
+public-domain Dhrystone 2.1 benchmark (ported from the copy vendored at
+`workspace/Luckfoxpico/luckfox-pico/sysdrv/source/uboot/u-boot/lib/dhry/`)
+and prints Dhrystones/second and DMIPS (Dhrystones/second / 1757, the VAX
+11/780 reference) over the console. Console/clock only, like `hello_world` -
+no GPIO driver dependency, so it builds and links against the stock
+`esp32c3db` BSP install with no extra integration steps. It self-calibrates
+the run count off the wall clock (ramping until a run takes at least 2s), so
+it doesn't need the ESP32-C3's actual clock speed hardcoded anywhere. Flashed
+and run on real hardware (160MHz single-core ESP32-C3, QFN32 rev v0.4) on
+2026-08-24: 800000 runs / 5.996s, 133423.6 Dhrystones/second, **75.94 DMIPS**
+(~0.47 DMIPS/MHz). The end-of-run sanity values matched the Dhrystone 2.1
+reference program's own documented expected results exactly (`Int_Glob=5`,
+`Bool_Glob=1`, `Ch_1_Glob=A`, `Ch_2_Glob=B`), confirming the port is
+behaviorally correct, not just building.
+
 **`examples/gpio_led_blink` - builds, not yet run on hardware**: `esp32c3db`
 upstream still only implements `start`, `irq`, `clock` (SYSTIMER), and `console`
 (UART0/USB-Serial) drivers itself, no GPIO driver. A register-level GPIO driver
@@ -85,11 +101,30 @@ the driver README for the exact steps. Still untested against real hardware.
 ## Flashing and monitoring
 
 The BSP boots directly from flash via the ESP32-C3's direct-boot header (no 2nd
-stage bootloader). Flash the built image with `esptool`:
+stage bootloader) - meaning the boot ROM just starts executing raw code mapped
+at flash offset 0, with none of Espressif's own app-image header/segment-table
+format involved. Confirmed 2026-08-24 while flashing `dmips_benchmark`:
+**`esptool elf2image` doesn't work here** and shouldn't be used - it fails with
+`Segment loaded at 0x42000100 lands in same 64KB flash mapping as segment
+loaded at 0x42000000` on every RTEMS `.exe` in this BSP (reproduced on both
+esptool 5.3.1 and 4.7.0), because it builds Espressif's app-image format from
+ELF *sections* and refuses to merge `.start`/`.text` into one flash-mapped
+segment since they carry different section flags (`.start` is `WAX`, `.text`
+is `AX`) even though they're one contiguous `PT_LOAD` program header. Instead,
+turn the linked `.exe` into a flat binary with `objcopy` and flash that
+directly at offset 0 - this is what actually produced the working
+`oled_1in3_sh1106_spi.bin` (verified byte-for-byte identical to
+`objcopy`'s output from that example's `.exe`):
 
 ```
-esptool.py --chip esp32c3 write_flash 0x0 <image>.bin
+riscv-rtems7-objcopy -O binary <name>.exe <name>.bin
+esptool.py --chip esp32c3 -p /dev/ttyACM0 write_flash 0x0 <name>.bin
 ```
+
+To monitor the console (UART0/USB-Serial-JTAG) afterward, open
+`/dev/ttyACM0` at 115200 8N1 with any serial terminal (e.g. `screen
+/dev/ttyACM0 115200`, `python3 -m serial.tools.miniterm /dev/ttyACM0
+115200`, or `esptool.py --chip esp32c3 -p /dev/ttyACM0 monitor`).
 
 ## Debugging
 

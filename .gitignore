@@ -2,4 +2,7 @@
 # build artifacts, not source, so ignore everything except the placeholders that
 # keep these directories present in git.
 firmware/*/*
+*.o
+*.exe
+*.bin
 !firmware/*/.gitkeep

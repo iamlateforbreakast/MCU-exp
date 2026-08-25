@@ -24,10 +24,10 @@
 #include "hardware/spi.h"
 
 #define SPI_PORT spi0
-#define SPI_SCK_PIN 18
-#define SPI_MOSI_PIN 19
-#define SPI_MISO_PIN 16
-#define SPI_CS_PIN 17
+#define SPI_SCK_PIN 6
+#define SPI_MOSI_PIN 7
+#define SPI_MISO_PIN 4
+#define SPI_CS_PIN 5
 #define SPI_BAUDRATE (500 * 1000)
 
 #define READ_BIT 0x80

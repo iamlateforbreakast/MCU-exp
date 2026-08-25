@@ -4,8 +4,8 @@
 #include "pico/stdlib.h"
 
 #define LED_GPIO_0 25
-#define LED_GPIO_1 16
-#define LED_GPIO_2 17
+#define LED_GPIO_1 14
+#define LED_GPIO_2 15
 
 static const uint leds[] = {LED_GPIO_0, LED_GPIO_1, LED_GPIO_2};
 static const int num_leds = sizeof(leds) / sizeof(leds[0]);
