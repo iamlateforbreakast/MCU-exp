@@ -2,8 +2,10 @@
 
 **Status: `bt.c` compiles clean (2026-08-25)** against the real `riscv-rtems7-gcc` +
 installed `esp32c3db` BSP + `freertos-compat` shim + `sdkconfig-compat.h`, in
-`esp32c3-rtems-dev`. Not linked yet - `libbtdm_app.a` isn't vendored into this
-repo (see "Linking" below for why, and what's already confirmed about it).
+`esp32c3-rtems-dev`. A real test-link of `bt.o` + the fetched (not vendored)
+`libbtdm_app.a` + `../rom-linker-patch/btdm-rom-symbols.ld` (`riscv-rtems7-ld
+-r`, same session) leaves only 73 undefined symbols - down from 88 - see
+"Linking" below for the exact remaining set and what each one needs.
 
 Files here mirror their real path inside an ESP-IDF checkout
 (`components/<component>/...`), copied unmodified (SPDX headers intact) from
@@ -136,15 +138,25 @@ never by calling each other's functions by name directly, exactly as
 The blob's own 185 real external needs (undefined across its 102 object
 files, minus symbols the archive resolves internally) were checked against
 ESP-IDF's real ROM linker scripts
-(`components/esp_rom/esp32c3/ld/esp32c3.rom*.ld`, same v5.3.1 tag) - **171 of
-185 (92%) are real, fixed ROM addresses already defined there**
+(`components/esp_rom/esp32c3/ld/esp32c3.rom*.ld`, same v5.3.1 tag) - **172 of
+186 (including `ets_rom_layout_p`/`esp_rom_delay_us`, bt.c's own two direct
+ROM needs) are real, fixed ROM addresses already defined there**
 (`PROVIDE(sym = 0x4000....)` style), confirming the closed blob mostly calls
 directly into the ESP32-C3's boot ROM, not into anything this repo would
-need to implement. This is the same category of gap as `ets_rom_layout_p`
-(`../README.md`'s Phase 2 section) at much larger scale - the RTEMS BSP's
-link step needs these ROM address definitions added (a real linker-script
-integration task, register-level in the same vein as the interrupt-vector
-`bsp-patch/`, not yet attempted).
+need to implement.
+
+**Now actually done, not just proposed**: `../rom-linker-patch/btdm-rom-symbols.ld`
+has all 172 as real `PROVIDE()` lines, cited and cross-checked - see that
+file's own header comment for the full provenance. **Validated with a real
+link test** (`riscv-rtems7-ld -r -T btdm-rom-symbols.ld bt.o
+libbtdm_app.a -o combined.o`, 2026-08-25): no syntax errors (one real
+mistake caught and fixed here - a double-`PROVIDE()` wrap on a line whose
+source text already had one), and the resulting undefined-symbol count
+dropped from 88 (`bt.o` alone) to 73. This is the same category of gap as
+`ets_rom_layout_p` was on its own (`../README.md`'s Phase 2 section), just
+resolved at full scale now instead of for one symbol - integrating this
+fragment into the actual RTEMS BSP's own linker script (vs. this session's
+standalone `-T`-flag validation) is the next step, not yet done.
 
 **14 symbols remain genuinely unresolved** even after checking every
 `esp32c3.rom*.ld` file (including the per-revision `eco3`/`eco7` overlays)
@@ -170,14 +182,80 @@ identified yet - flagged as open, not guessed at.
 
 ## Not vendored / still open
 
-- `libbtdm_app.a`/`libbtdm_app_flash.a` (see "Linking" above).
-- NimBLE host source (`components/bt/host/nimble`) and
+Remaining undefined symbols after the ROM-fragment link test (73 total),
+grouped by what each actually needs - real recon done 2026-08-25 for all of
+these, confirmed via reading the real source, not guessed:
+
+- **Will resolve once actually linked** (already implemented, just not
+  combined in a real link yet): `freertos-compat`'s own exports
+  (`xQueue*`/`xSemaphore*`/`xTaskCreatePinnedToCore`/`vTaskDelete`/
+  `vPortYield`/`xPortInIsrContext`/`freertos_compat_enter/exit_critical`/
+  `heap_caps_*`/`esp_intr_*`/`esp_timer_*`), and libc
+  (`malloc`/`free`/`printf`/`__assert_func`/`__udivdi3`, all in RTEMS's
+  newlib already).
+
+- **`coex_pti_v2`, `l2c_ble_link_get_tx_buf_num`** - expected, not new gaps:
+  the former is `esp_coex` (deliberately excluded from this profile, see
+  `../README.md`'s `CONFIG_ESP_COEX_ENABLED` note), the latter is an L2CAP
+  function from the NimBLE/Bluedroid host (Phase 4, not vendored yet).
+
+- **`esp_phy_enable`/`_disable`/`_modem_init`/`_modem_deinit` AND
+  `esp_wifi_bt_power_domain_on`/`_off`** - all six live in the same real,
+  open Apache-2.0 file: `components/esp_phy/src/phy_init.c` (1160 lines,
+  confirmed by reading it this session - the power-domain pair wasn't
+  previously known to live here, closing a small gap in Phase 2's original
+  recon). Not vendored: `phy_init.c` `#include`s `nvs.h`/`nvs_flash.h`/
+  `esp_efuse.h`/`esp_private/wifi.h`/`hal/efuse_hal.h`/`esp_private/
+  sleep_retention.h` - real additional subsystems (flash/NVS, efuse
+  reading, sleep-retention) this profile hasn't needed anything from yet.
+  Vendoring it means either pulling all of those in too or carefully
+  `#ifdef`-ing/stubbing around them - a task on the same scale as
+  `freertos-compat` itself, not attempted this session.
+
+- **`periph_module_enable`/`_disable`/`_reset`** - real, open
+  (`components/esp_hw_support/periph_ctrl.c`), and confirmed **not**
+  no-ops for ESP32-C3: their entire body is gated on
+  `__PERIPH_CTRL_ALLOW_LEGACY_API`, which `esp_private/periph_ctrl.h`
+  (vendored here) `#define`s unconditionally for `CONFIG_IDF_TARGET_ESP32C3`
+  (real header, real gate list - checked, not assumed). The real bodies
+  call `periph_ll_enable_clk_clear_rst`/`_disable_clk_set_rst`/`_reset`
+  from `hal/clk_gate_ll.h` - ESP-IDF's HAL layer, a real per-chip
+  register-access abstraction this repo hasn't touched yet. Register-level
+  work in the same vein as `../upstream-gpio-driver/` etc., not attempted.
+
+- **`esp_clk_xtal_freq`, `esp_clk_slowclk_cal_get`** (`components/
+  esp_hw_support/esp_clk.c`), **`rtc_clk_slow_src_get`** (`components/
+  esp_hw_support/port/esp32c3/rtc_clk.c`), **`esp_random`** (`components/
+  esp_hw_support/hw_random.c`), **`esp_read_mac`** (`components/
+  esp_hw_support/mac_addr.c`, efuse-backed) - all real, open, and all pull
+  in ESP-IDF's HAL layer (`hal/clk_tree_ll.h`, `hal/lp_timer_hal.h`,
+  `hal/lp_clkrst_ll.h`) and/or the efuse subsystem
+  (`esp_efuse.h`/`esp_efuse_table.h`) - same category of new register-level
+  work as `periph_module_*` above, not attempted.
+
+- **`bt_bb_*`/`bt_track_pll_cap`/`r_llc_*`/`r_lld_*`/`r_rwip_*`/
+  `r_rwbtdm_isr_wrapper`** (14 symbols) - genuinely unresolved even after
+  checking every ROM `.ld` variant and both blob files, see "Linking"
+  above.
+
+- **`_bt_data_start`/`_bt_data_end`/`_bt_bss_start`/`_bt_bss_end`/
+  `_bt_controller_data_start`/`_bt_controller_data_end`/
+  `_bt_controller_bss_start`/`_bt_controller_bss_end`** - **not** ROM
+  addresses (a wrong first guess this session corrected): real ESP-IDF
+  generates these via its own build-time linker-fragment tool (`ldgen`),
+  reading `.lf` files like `components/bt/linker_esp_ble_controller.lf`
+  (checked - it maps `libble_app.a`'s `.bss`/`.data` sections into
+  `dram0_bss`/`dram0_data` with a `SURROUND(bt_controller_bss)`-style
+  directive, which is what actually generates the paired `_start`/`_end`
+  symbols). Since this RTEMS build doesn't use `ldgen` at all, replicating
+  this means hand-writing the equivalent section-placement + `PROVIDE()`
+  pairs directly into the `esp32c3db` BSP's own linker script - real
+  linker-script surgery where getting it wrong is a silent memory-placement
+  bug, not a compile error. Not attempted this session; needs understanding
+  the BSP's actual default linker script layout first, which hasn't been
+  looked at yet.
+
+- **`libbtdm_app.a`/`libbtdm_app_flash.a`** themselves (see "Linking"
+  above) - fetched and analyzed, not vendored into the repo.
+- **NimBLE host source** (`components/bt/host/nimble`) and
   `npl_os_freertos.c` - Phase 4 per `../README.md`.
-- `esp_phy`'s own real source (`phy_init.c`/`phy_common.c`) - `bt.c` compiles
-  against the header-only `esp_phy_init.h`/`esp_private/phy.h` vendored here,
-  but the functions themselves (`esp_phy_enable` etc.) aren't implemented or
-  vendored, so nothing calling them can link yet.
-- The ROM linker-script integration this session's `nm` cross-check found
-  necessary (171+ `PROVIDE()`-style symbol definitions, plus resolving the
-  14 genuinely-missing ones) - comparable in scope to `../bsp-patch/`, not
-  started.

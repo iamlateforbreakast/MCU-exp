@@ -50,9 +50,16 @@ time found three more real, confirmed bugs in `freertos-compat`
 `libbtdm_app.a` (the closed blob) was fetched and real `nm`-cross-checked
 against `bt.o`'s needs (the step Phase 0/3 could only postpone until now) -
 92% of what the blob needs is confirmed satisfiable via real ESP-IDF ROM
-linker scripts, 14 symbols remain genuinely unresolved. Not linked yet, and
-still no NimBLE/esp_phy source vendored - see `vendor/README.md`'s "Not
-vendored / still open" for the honest remaining list.
+linker scripts, now written up as a real, validated fragment
+(`rom-linker-patch/btdm-rom-symbols.ld` - a real test link with it applied,
+`bt.o` + the real blob, dropped 88 undefined symbols to 73), 14 symbols
+remain genuinely unresolved. Not linked into an actual RTEMS application
+yet, and still no NimBLE/`esp_phy` source vendored - `vendor/README.md`'s
+"Not vendored / still open" has the precise remaining list, including a
+correction: the `_bt_*_start`/`_end` symbols bt.c needs turned out to be
+IDF's own build-time linker-fragment generator (`ldgen`) output, not ROM
+addresses - real linker-script surgery against the BSP's own script, not
+yet started.
 
 This
 directory tracks integrating ESP-IDF's BLE stack directly
