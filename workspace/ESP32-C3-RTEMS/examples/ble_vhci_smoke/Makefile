@@ -71,7 +71,7 @@ OBJS := \
   heap_caps.o lock.o nvs_stub.o queue.o semphr.o task.o \
   bt.o \
   esp_clk.o hw_random.o mac_addr.o periph_ctrl.o esp_gpio_reserve.o \
-  rtc_clk.o rtc_time.o \
+  rtc_clk.o rtc_time.o rtc_clk_init.o \
   phy_init.o phy_common.o lib_printf.o phy_callback.o phy_init_data.o \
   esp_efuse_api.o esp_efuse_utility_generic.o esp_efuse_fields_generic.o \
   esp_efuse_table.o esp_efuse_utility_c3.o esp_efuse_fields_c3.o \
@@ -118,6 +118,8 @@ esp_gpio_reserve.o: $(VENDOR)/esp_hw_support/esp_gpio_reserve.c
 rtc_clk.o: $(VENDOR)/esp_hw_support/port/esp32c3/rtc_clk.c
 	$(CC) $(CFLAGS) -c $< -o $@
 rtc_time.o: $(VENDOR)/esp_hw_support/port/esp32c3/rtc_time.c
+	$(CC) $(CFLAGS) -c $< -o $@
+rtc_clk_init.o: $(VENDOR)/esp_hw_support/port/esp32c3/rtc_clk_init.c
 	$(CC) $(CFLAGS) -c $< -o $@
 phy_init.o: $(VENDOR)/esp_phy/src/phy_init.c
 	$(CC) $(CFLAGS) -include esp_attr.h -include esp_heap_caps.h -c $< -o $@

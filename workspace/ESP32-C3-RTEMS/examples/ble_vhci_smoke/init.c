@@ -5,13 +5,16 @@
  * send an HCI Reset command over the in-process VHCI transport, and check
  * whether a valid HCI Command Complete event comes back.
  *
- * Status: UNTESTED - this repo's sandbox has no ESP32-C3 hardware, so this
- * has only been built (see ../../upstream-bt-driver/vendor/README.md and
- * ../../upstream-bt-driver/linker-section-patch/README.md for what's been
- * validated so far: every piece this app calls compiles and links against
- * real vendored/fetched ESP-IDF source, but nothing has run on a real chip
- * yet). Do not trust the "PASS"/"FAIL" framing below to mean anything until
- * it has actually executed on hardware.
+ * Status (2026-08-26): links and boots on real ESP32-C3 hardware (QFN32
+ * rev v0.4) - both closed blobs execute real code (their own internal
+ * version-banner log lines print over serial), but it hung inside the
+ * closed PHY blob's register_chipv7_phy() RF-calibration call, root-caused
+ * to real ESP-IDF's clock-tree bring-up (rtc_clk_init()) never having been
+ * called anywhere in this port. That call is now wired in below; not yet
+ * re-verified on hardware as of this comment - see
+ * ../../upstream-bt-driver/vendor/README.md for the full writeup. Do not
+ * trust the "PASS"/"FAIL" framing below to mean anything until it has
+ * actually completed a real run on hardware.
  *
  * HCI Reset command bytes (Bluetooth Core Spec, Vol 4 Part E, section 7.3.2 -
  * a fixed, standard command, not something this port invents): packet type
@@ -24,6 +27,7 @@
 #include <string.h>
 
 #include "esp_bt.h"
+#include "soc/rtc.h"
 
 static rtems_id s_response_sem;
 static uint8_t s_response[16];
@@ -56,6 +60,35 @@ rtems_task Init(rtems_task_argument ignored)
     (void) ignored;
 
     printf("\nBLE controller-only smoke test (untested on real hardware)\n");
+
+    /* Real ESP-IDF brings up the XTAL/BBPLL clock tree via rtc_clk_init()
+     * very early in its own startup (bootloader_clock_init()/
+     * esp_startup.c - neither vendored here, since RTEMS's own startup
+     * replaces ESP-IDF's), before any app code runs. This RTEMS port
+     * never called it at all until now - found 2026-08-26 while tracking
+     * down a real-hardware hang inside the closed PHY blob's
+     * register_chipv7_phy() RF-calibration call, which calls back into
+     * this port's rtc_clk.c and into a ROM BBPLL-calibration routine
+     * that likely polls a PLL-lock bit that can never assert if the
+     * BBPLL was never digitally configured - see
+     * ../../upstream-bt-driver/vendor/README.md for the full writeup.
+     * Values match this board's confirmed real configuration (QFN32 rev
+     * v0.4, 40MHz XTAL per esptool's own detection, 160MHz CPU per the
+     * dmips_benchmark milestone) rather than RTC_CLK_CONFIG_DEFAULT()'s
+     * literal 80MHz default, to avoid changing the CPU clock speed RTEMS
+     * itself already brought the board up at. */
+    rtc_clk_config_t clk_cfg = {
+        .xtal_freq = SOC_XTAL_FREQ_40M,
+        .cpu_freq_mhz = 160,
+        .fast_clk_src = SOC_RTC_FAST_CLK_SRC_RC_FAST,
+        .slow_clk_src = SOC_RTC_SLOW_CLK_SRC_RC_SLOW,
+        .clk_rtc_clk_div = 0,
+        .clk_8m_clk_div = 0,
+        .slow_clk_dcap = RTC_CNTL_SCK_DCAP_DEFAULT,
+        .clk_8m_dfreq = RTC_CNTL_CK8M_DFREQ_DEFAULT,
+    };
+    printf("calling rtc_clk_init (XTAL/BBPLL bring-up)...\n");
+    rtc_clk_init(clk_cfg);
 
     rtems_status_code sc = rtems_semaphore_create(
         rtems_build_name('v', 'h', 'c', 'i'),

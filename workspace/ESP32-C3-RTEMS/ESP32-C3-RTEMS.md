@@ -163,20 +163,45 @@ blob's own build-version log (`BT controller compile version
 [aa16a46]`, matching the pinned commit exactly) and the real PHY blob's
 own version banner (`phy_version 1180,01f2a49,Jun 4 2024,16:34:25`)
 both print from genuine blob code executing on real silicon. It then
-hangs inside `register_chipv7_phy()` - the closed PHY blob's RF
+hung inside `register_chipv7_phy()` - the closed PHY blob's RF
 calibration entry point - confirmed by bracketing it with diagnostic
-prints (one prints right before the call, none after). This is now a
-real hardware/register-level question (a missing clock/power-domain
-setup step, an efuse-derived calibration constant gap, or an interrupt
-the calibration loop polls for) rather than a source-compilation one.
+prints. **Root-caused and fixed**: real ESP-IDF's clock-tree bring-up
+(`rtc_clk_init()` - XTAL frequency write, BBPLL enable/configure, CPU
+clock source switch) was never called anywhere in this RTEMS port,
+since RTEMS's own startup replaces ESP-IDF's and nothing else called
+it. The closed PHY blob calls back into this port's `rtc_clk.c` and
+into a ROM BBPLL-calibration routine that was polling a PLL-lock bit
+that could never assert without that bring-up. Vendored real IDF
+v5.3.1's `rtc_clk_init.c` (a small, self-contained file - all its
+`rtc_clk_*` dependencies were already vendored in `rtc_clk.c`, just
+never called; only needed 3 new ROM `PROVIDE()`s -
+`esp_rom_set_cpu_ticks_per_us`, `esp_rom_regi2c_write{,_mask}`) and
+called it once, early, from `examples/ble_vhci_smoke/init.c` before BT
+init, with values matching this board's confirmed real config (40MHz
+XTAL, 160MHz CPU) rather than the real default macro's literal 80MHz,
+to avoid changing the CPU speed RTEMS itself already brought the board
+up at. Reflashed and confirmed on real hardware: the diagnostic prints
+now show `register_chipv7_phy()` actually **returning** - RF
+calibration completes for real.
+
+Execution now gets further, into a new, distinct problem: a real
+assert from the closed blob's own internal code (`BLE assert emi.c
+164, param 00000000 00001000` - "emi" = the blob's internal Exchange
+Memory/buffer-pool allocator; the assert message is opaque past that,
+printed via the blob's own ROM-provided assert handler). Not yet
+investigated - likely an `esp_bt_controller_config_t` field (real IDF's
+`CONFIG_BT_CTRL_*` values feeding `BT_CONTROLLER_INIT_CONFIG_DEFAULT()`
+in `examples/ble_vhci_smoke/init.c`) that's zero/wrong versus what the
+closed blob's memory-pool sizing expects.
+
 A JTAG attempt (ephemeral `podman run --device .../usb/<bus>/<dev>
 --security-opt label=disable`, since plain compose `devices:` +
 SELinux denies raw USB nodes) got `openocd` attached to the chip's
-built-in USB-JTAG, but `halt`/examination fails even on a clean
-`reset halt` before any of this port's code runs - a JTAG/config
-problem independent of the actual hang, not yet resolved (exact
-error: `Timed out after 5s waiting for busy to go low
-(abstractcs=...)`, reproduced at multiple adapter speeds). See
+built-in USB-JTAG, but `halt`/examination failed even on a clean
+`reset halt` before any of this port's code ran - a JTAG/config
+problem independent of the clock-tree bug (already fixed without it),
+not yet resolved (exact error: `Timed out after 5s waiting for busy to
+go low (abstractcs=...)`, reproduced at multiple adapter speeds). See
 `upstream-bt-driver/vendor/README.md`
 for the full build recipe and blob-version-pinning writeup, and
 `upstream-bt-driver/README.md` for the full mapping table, real

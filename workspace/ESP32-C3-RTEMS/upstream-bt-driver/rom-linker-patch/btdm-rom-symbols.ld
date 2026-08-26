@@ -68,6 +68,18 @@ PROVIDE ( ets_get_cpu_frequency = 0x40000584 );
 PROVIDE ( esp_rom_printf = ets_printf );
 PROVIDE ( esp_rom_get_cpu_ticks_per_us = ets_get_cpu_frequency );
 
+/* Needed by the newly-vendored rtc_clk_init.c (2026-08-26, fixing the
+ * register_chipv7_phy() RF-calibration hang - real ESP-IDF's clock-tree
+ * bring-up was never called anywhere in this port before). */
+PROVIDE ( uart_tx_wait_idle = 0x40000084 );
+PROVIDE ( esp_rom_output_tx_wait_idle = uart_tx_wait_idle );
+PROVIDE ( ets_update_cpu_frequency = 0x40000588 );
+PROVIDE ( esp_rom_set_cpu_ticks_per_us = ets_update_cpu_frequency );
+PROVIDE ( rom_i2c_writeReg = 0x4000195c );
+PROVIDE ( esp_rom_regi2c_write = rom_i2c_writeReg );
+PROVIDE ( rom_i2c_writeReg_Mask = 0x40001960 );
+PROVIDE ( esp_rom_regi2c_write_mask = rom_i2c_writeReg_Mask );
+
 PROVIDE ( TASK_DESC_LLC = 0x3fcdfa1c );
 PROVIDE ( TASK_DESC_LLM = 0x3fcdfa10 );
 PROVIDE ( aa_gen = 0x3fcdff78 );
