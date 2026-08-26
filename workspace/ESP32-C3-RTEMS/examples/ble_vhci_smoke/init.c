@@ -73,10 +73,10 @@ rtems_task Init(rtems_task_argument ignored)
      * from a real power-on boot. This gives a wide window to attach and
      * plain-`halt` (not reset) a genuine power-on boot before it reaches
      * the crash, without needing split-second timing. */
-    printf("DIAG: sleeping 10s for JTAG attach...\n");
+    printf("DIAG: sleeping 40s for JTAG attach...\n");
     {
         rtems_interval per_second = rtems_clock_get_ticks_per_second();
-        rtems_task_wake_after(per_second * 10);
+        rtems_task_wake_after(per_second * 40);
     }
     printf("DIAG: done sleeping, continuing\n");
 

@@ -290,14 +290,62 @@ register on this RTEMS port, while it does on real IDF with the
 identical blob. The 200-byte allocation that maps to region 3
 succeeds (`DIAG: malloc_internal(200) -> ...` logs fine) - only the
 register write is missing, and that write happens entirely inside
-closed-blob code we can't see or step through further. Leading
-untested lead: one of the BLE feature-gate Kconfig macros added
-during the blob/bt.c pairing (`CONFIG_BT_CTRL_BLE_SCAN`,
-`_SECURITY_ENABLE`, `_MIN_CONN_INTERVAL_ENABLE`, `_DTM_ENABLE` - all
-currently `1` from a general "match real defaults" assumption, not
-independently re-verified per-macro against this exact blob/bt.c
-commit) may gate whether the blob configures this region at all. See
-`upstream-bt-driver/vendor/README.md`
+closed-blob code we can't see or step through further.
+
+**Kconfig fix applied, real but insufficient.** The four feature-gate
+macros above (`CONFIG_BT_CTRL_BLE_SCAN`, `_SECURITY_ENABLE`,
+`_MIN_CONN_INTERVAL_ENABLE`, `_DTM_ENABLE`) were verified against real
+IDF's own `Kconfig.in` at this exact commit - none of them are real
+Kconfig options at all for this profile, so a real IDF build never
+defines them and `esp_bt.h`/`bt.c` fall through to their `0` (off)
+defaults. This port had them hardcoded to `1`. Flipped to `0` in
+`sdkconfig-compat.h`; rebuilt and reflashed - the runtime feature-config
+log now matches real IDF exactly (`DTM:0, SCAN:0, SMP:0`), confirming
+the fix is correct. **But the crash persists** - only the assert's line
+number moved (`emi.c 164` -> `emi.c 331`), same register (`0x60031210`),
+same region 3. Kept the fix (it's independently correct) but it isn't
+the root cause.
+
+**Refined timing, from careful log re-reading (no JTAG needed for
+this part):** the EM-region malloc/register-write sequence
+(`r_emi_em_base_init`, all 13 allocations incl. the region-3 200-byte
+one) happens once, during `esp_bt_controller_init()`, and completes
+successfully. The assert now fires later, during
+`esp_bt_controller_enable()`, *after* PHY calibration runs - matching
+the JTAG-derived call chain's `btdm_controller_on_reset -> r_rwip_reset
+-> ... -> r_emi_get_mem_addr_by_offset -> [assert]` (`rwip_reset` reads
+as "RW IP stack reset", i.e. an enable-time reset of the whole BT
+stack state, not part of init). `bt.c` itself only calls
+`periph_module_reset(PERIPH_BT_MODULE)` once, inside `init()`, before
+the EM writes - so nothing at the RTEMS-visible source level re-resets
+the peripheral between init and enable. Cross-checked against Zephyr's
+`hal_espressif` driver for the same blob commit
+(`components/bt/controller/esp32c3/bt.c` in
+github.com/zephyrproject-rtos/hal_espressif) - functionally identical
+call structure, same single reset call, no extra step. So whatever
+clears or fails to preserve region 3's register between init and
+enable happens entirely inside the closed blob's own
+`btdm_controller_on_reset`/`r_rwip_reset` path - a second genuine
+diagnosability boundary, this time on the *enable* side rather than
+the init side.
+
+**Live single-instruction JTAG verification attempted, blocked by
+tooling, not hardware.** Tried to catch the exact moment right after
+the region-3 `sw` instruction in `r_emi_em_base_init` executes (to see
+whether the write ever lands at all, vs. lands and is later cleared).
+Two attempts, two power cycles, both inconclusive: raw telnet's
+`openocd` process died mid-session with no error in its log; a
+completely fresh, telnet-free GDB session failed at the initial RSP
+handshake (`Remote replied unexpectedly to 'vMustReplyEmpty'`),
+ruling out "telnet pollution" as the earlier session's cause - this
+GDB build and this OpenOCD's remote-serial-protocol implementation
+appear to be genuinely incompatible for `target remote`, independent
+of history. See `esp32c3_jtag_debugging` memory for the full detail;
+this is now a known, real gap in the toolchain for anything needing
+`continue`/`stepi` over GDB, not just a documented ambiguity in
+telnet's `resume`.
+
+See `upstream-bt-driver/vendor/README.md`
 for the full build recipe and blob-version-pinning writeup, and
 `upstream-bt-driver/README.md` for the full mapping table, real
 ESP32-C3 interrupt-source numbers, and phased plan.

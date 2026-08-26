@@ -234,14 +234,29 @@
  * debug-log subsystem (`BT_CTRL_LE_LOG_*`/`BLE_LOG_*`) that defaults off,
  * or a feature-gate macro that defaults on (this port had these features
  * unconditionally compiled in before the gates existed, so `1` is the
- * behavior-preserving choice, not just the Kconfig default). */
+ * behavior-preserving choice, not just the Kconfig default).
+ *
+ * CORRECTION (2026-08-26): the "behavior-preserving = 1" assumption above
+ * was wrong for MIN_CONN_INTERVAL_ENABLE/DTM_ENABLE/BLE_SCAN/
+ * BLE_SECURITY_ENABLE specifically - verified by grepping real IDF's own
+ * `components/bt/controller/esp32c3/Kconfig.in` at this exact commit:
+ * none of these four are real `config` entries at all, so a real IDF
+ * build's generated sdkconfig never defines them, and esp_bt.h/bt.c fall
+ * through to their `0` (off) defaults. Confirmed by grepping a real
+ * `ble_controller_probe` build's generated sdkconfig too - none of these
+ * four appear anywhere in it. A real, working IDF run on this same board
+ * with the identical blob commit has scan/DTM/security/min-conn-interval
+ * all OFF, discovered via live JTAG register comparison while diagnosing
+ * "BLE assert emi.c 164" (see ESP32-C3-RTEMS.md). Flipped to 0 to match
+ * verified real behavior instead of the unverified legacy-preservation
+ * guess. */
 #define CONFIG_BT_CTRL_CHECK_CONFIG_EFF 1
 #define CONFIG_BT_CTRL_RUN_IN_FLASH_ONLY 0
-#define CONFIG_BT_CTRL_BLE_MIN_CONN_INTERVAL_ENABLE 1
-#define CONFIG_BT_CTRL_DTM_ENABLE 1
+#define CONFIG_BT_CTRL_BLE_MIN_CONN_INTERVAL_ENABLE 0
+#define CONFIG_BT_CTRL_DTM_ENABLE 0
 #define CONFIG_BT_CTRL_BLE_MASTER 1
-#define CONFIG_BT_CTRL_BLE_SCAN 1
-#define CONFIG_BT_CTRL_BLE_SECURITY_ENABLE 1
+#define CONFIG_BT_CTRL_BLE_SCAN 0
+#define CONFIG_BT_CTRL_BLE_SECURITY_ENABLE 0
 #define CONFIG_BT_CTRL_BLE_ADV 1
 /* CONFIG_BT_CTRL_LE_LOG_EN and everything depending on it
  * (CONFIG_BLE_LOG_ENABLED, CONFIG_BT_CTRL_LE_HCI_LOG_EN,
