@@ -252,4 +252,43 @@
  * intentionally left undefined - Kconfig.in:601-602 real default is
  * `n` (off) unless `BLE_LOG_LL_ENABLED`, which this port doesn't set. */
 
+/* --- Real-vs-RTEMS control experiment found two real bugs (2026-08-26) ---
+ * Built a minimal controller-only probe as a genuine ESP-IDF v5.3.1
+ * project (this repo's `workspace/ESP32-C3/ble_controller_probe/`,
+ * `esp32c3-dev` container, real toolchain/bootloader/FreeRTOS) with the
+ * exact same closed-blob commit this port's original pairing used
+ * (that container's IDF checkout is a --recursive clone of v5.3.1,
+ * whose lib_esp32c3_family submodule pin is bfdfe8f851c99ced8316b133b
+ * 0a90deb92efd - the same commit this port's very first pairing used).
+ * It PASSED cleanly on the same real board - proving the blob/hardware
+ * pairing itself is fine, and the "BLE assert emi.c ..." this RTEMS
+ * port hits is caused by something in this port's platform layer, not
+ * the blob. Its serial log revealed two concrete divergences from what
+ * this port's `phy_init.c`/`mac_addr.c` had been assuming:
+ *
+ * 1. Real IDF's default sdkconfig enables PHY calibration/NVS storage,
+ *    so `phy_init.c` takes the `#ifdef CONFIG_ESP_PHY_CALIBRATION_
+ *    AND_DATA_STORAGE` branch (falls back to full calibration when NVS
+ *    load fails, same as this port's simpler unconditional-full-cal
+ *    `#else` branch - but *also* calls `esp_efuse_mac_get_default()`
+ *    and sets `cal_data->mac` before calibrating, which the `#else`
+ *    branch this port was taking skips entirely).
+ * 2. Real IDF's default `ESP32C3_UNIVERSAL_MAC_ADDRESSES_FOUR` choice
+ *    (`esp_hw_support/port/esp32c3/Kconfig.mac:29-35`) selects
+ *    `ESP_MAC_ADDR_UNIVERSE_{WIFI_STA,WIFI_AP,BT,ETH}` - none of which
+ *    this file had ever defined. Real hardware showed a valid factory
+ *    Bluetooth MAC with the real probe; this port's own runs always hit
+ *    "mac type is incorrect (not found)" and fell back to a placeholder
+ *    - because with `CONFIG_ESP_MAC_ADDR_UNIVERSE_BT` undefined, mac_addr.c's
+ *    `generate_mac()`'s `case ESP_MAC_BT:` (guarded by
+ *    `#if CONFIG_ESP_MAC_ADDR_UNIVERSE_BT`) was compiled out of this
+ *    port's build entirely - not a runtime efuse-read failure, a
+ *    compile-time-absent code path. */
+#define CONFIG_ESP_PHY_CALIBRATION_AND_DATA_STORAGE 1
+#define CONFIG_ESP_PHY_CALIBRATION_MODE 0
+#define CONFIG_ESP_MAC_ADDR_UNIVERSE_WIFI_STA 1
+#define CONFIG_ESP_MAC_ADDR_UNIVERSE_WIFI_AP 1
+#define CONFIG_ESP_MAC_ADDR_UNIVERSE_BT 1
+#define CONFIG_ESP_MAC_ADDR_UNIVERSE_ETH 1
+
 #endif /* _FREERTOS_COMPAT_SDKCONFIG_COMPAT_H_ */

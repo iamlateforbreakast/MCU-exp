@@ -237,7 +237,28 @@ problem independent of the actual bug (exact error: `Timed out after
 5s waiting for busy to go low (abstractcs=...)`, reproduced at
 multiple adapter speeds and 2 different openocd config compositions -
 a real tooling blocker, not yet resolved, would need a different probe
-or openocd build to get a full backtrace at the assert site). See
+or openocd build to get a full backtrace at the assert site).
+
+**Decisive control experiment**: built `workspace/ESP32-C3/
+ble_controller_probe/`, a real ESP-IDF v5.3.1 project (the existing
+`esp32c3-dev` container, not the RTEMS one) doing the exact same
+minimal controller-only sequence, using the exact same closed-blob
+commit this port's original pairing used. **It passed cleanly on the
+same real board** - proving the blob/hardware is fine and the bug is
+in this RTEMS port's platform layer. Its log directly revealed two
+real, previously-undiscovered bugs (both fixed): `CONFIG_ESP_PHY_
+CALIBRATION_AND_DATA_STORAGE` and `CONFIG_ESP_MAC_ADDR_UNIVERSE_BT`
+(+ siblings) both default to enabled on real ESP32-C3 and were never
+defined in `sdkconfig-compat.h` - the MAC one meant `mac_addr.c`'s
+`ESP_MAC_BT` case was compiled out of this port's build entirely,
+explaining a real, previously-unexplained "mac type is incorrect"
+symptom. Fixed, confirmed on hardware (real factory MAC now reads
+correctly) - but the assert persists unchanged. A follow-up test
+temporarily matched this port's blob+bt.c to the exact real-IDF-tested
+pairing while keeping both fixes - still hit the identical assert,
+conclusively proving the remaining gap is genuine RTEMS-runtime
+behavior (task/interrupt timing, scheduling semantics), not any
+remaining source or config difference. See
 `upstream-bt-driver/vendor/README.md`
 for the full build recipe and blob-version-pinning writeup, and
 `upstream-bt-driver/README.md` for the full mapping table, real

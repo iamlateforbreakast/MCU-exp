@@ -82,6 +82,13 @@ PROVIDE ( esp_rom_regi2c_write = rom_i2c_writeReg );
 PROVIDE ( rom_i2c_writeReg_Mask = 0x40001960 );
 PROVIDE ( esp_rom_regi2c_write_mask = rom_i2c_writeReg_Mask );
 
+/* Needed after enabling CONFIG_ESP_PHY_CALIBRATION_AND_DATA_STORAGE in
+ * sdkconfig-compat.h (2026-08-26, matching real IDF's default - found
+ * via the real-ESP-IDF control-experiment comparison, see
+ * sdkconfig-compat.h's own note). */
+PROVIDE ( rtc_get_reset_reason = 0x40000018 );
+PROVIDE ( esp_rom_get_reset_reason = rtc_get_reset_reason );
+
 PROVIDE ( BasePoint_x_256 = 0x3ff1ffdc );
 PROVIDE ( BasePoint_y_256 = 0x3ff1ffbc );
 PROVIDE ( DebugE256PublicKey_x = 0x3ff1ff9c );

@@ -1,0 +1,8 @@
+# Controller-only, BLE-only - mirrors the RTEMS port's ble_vhci_smoke
+# example as closely as real ESP-IDF's Kconfig allows, for a real-vs-
+# RTEMS control experiment.
+CONFIG_BT_ENABLED=y
+CONFIG_BT_CONTROLLER_ONLY=y
+CONFIG_BTDM_CTRL_MODE_BLE_ONLY=y
+CONFIG_BTDM_CTRL_MODE_BR_EDR_ONLY=n
+CONFIG_BTDM_CTRL_MODE_BTDM=n

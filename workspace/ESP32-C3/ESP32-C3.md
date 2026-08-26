@@ -72,6 +72,14 @@ esptool.py --chip esp32c3 -p /dev/ttyACM0 -b 460800 --before default_reset --aft
 `idf.py monitor` (run from inside the container) still works fine for viewing serial output,
 since that's a read path with no analogous SELinux friction observed.
 
+## BLE controller probe
+
+`ble_controller_probe/` is a real ESP-IDF v5.3.1 project used as a control experiment for
+`../ESP32-C3-RTEMS/upstream-bt-driver/`'s BLE controller port - not a general-purpose
+example. It confirmed a specific closed-blob commit works correctly on real hardware,
+isolating a since-fixed assert to the RTEMS port's platform layer rather than the blob.
+See its own `README.md` and `../ESP32-C3-RTEMS`'s `ESP32-C3-RTEMS.md` for the full story.
+
 ## Firmware output
 
 `compose.yaml` also mounts a separate `firmware/ESP32-C3` host directory to `~/firmware`
