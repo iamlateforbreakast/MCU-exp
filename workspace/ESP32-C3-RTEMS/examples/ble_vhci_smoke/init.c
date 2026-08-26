@@ -7,14 +7,16 @@
  *
  * Status (2026-08-26): links and boots on real ESP32-C3 hardware (QFN32
  * rev v0.4) - both closed blobs execute real code (their own internal
- * version-banner log lines print over serial), but it hung inside the
- * closed PHY blob's register_chipv7_phy() RF-calibration call, root-caused
- * to real ESP-IDF's clock-tree bring-up (rtc_clk_init()) never having been
- * called anywhere in this port. That call is now wired in below; not yet
- * re-verified on hardware as of this comment - see
- * ../../upstream-bt-driver/vendor/README.md for the full writeup. Do not
- * trust the "PASS"/"FAIL" framing below to mean anything until it has
- * actually completed a real run on hardware.
+ * version-banner log lines print over serial). The register_chipv7_phy()
+ * RF-calibration hang (root-caused to missing rtc_clk_init() clock-tree
+ * bring-up) is fixed and confirmed on hardware. Now blocked on a
+ * different real assert from the closed blob's own code ("BLE assert
+ * emi.c 164") past that point - a missing 2nd-stage-bootloader-level
+ * hardware bring-up step (see esp32c3_bootloader_hw_bringup() below) is
+ * the current candidate fix, not yet re-verified on hardware as of this
+ * comment - see ../../upstream-bt-driver/vendor/README.md for the full
+ * writeup. Do not trust the "PASS"/"FAIL" framing below to mean anything
+ * until it has actually completed a real run on hardware.
  *
  * HCI Reset command bytes (Bluetooth Core Spec, Vol 4 Part E, section 7.3.2 -
  * a fixed, standard command, not something this port invents): packet type
@@ -28,6 +30,10 @@
 
 #include "esp_bt.h"
 #include "soc/rtc.h"
+
+/* upstream-bt-driver/vendor/components/bootloader_support/src/esp32c3/
+ * bootloader_hw_init.c - no public header, this is the only caller. */
+extern void esp32c3_bootloader_hw_bringup(void);
 
 static rtems_id s_response_sem;
 static uint8_t s_response[16];
@@ -60,6 +66,22 @@ rtems_task Init(rtems_task_argument ignored)
     (void) ignored;
 
     printf("\nBLE controller-only smoke test (untested on real hardware)\n");
+
+    /* Real ESP-IDF's 2nd-stage bootloader (bootloader_init(), real
+     * bootloader_esp32c3.c) runs chip-safety hardware bring-up before any
+     * app code - brownout/clock-glitch hardware reset detector enable,
+     * super-watchdog auto-feed. This port has no 2nd-stage bootloader
+     * (direct-boot header instead) and never ran any of this - found
+     * 2026-08-26 by cross-checking Zephyr's ESP32-C3 BLE port for
+     * anything missed while investigating a "BLE assert emi.c 164"
+     * closed-blob assert. Not confirmed as the fix for that (existing
+     * non-BLE examples run fine without it), but a real, previously-
+     * unidentified gap, cheap to close - see
+     * upstream-bt-driver/vendor/components/bootloader_support/src/
+     * esp32c3/bootloader_hw_init.c for the extracted real source. Called
+     * first, matching real IDF's own ordering (ana-reset/WDT bring-up
+     * before clock-tree bring-up). */
+    esp32c3_bootloader_hw_bringup();
 
     /* Real ESP-IDF brings up the XTAL/BBPLL clock tree via rtc_clk_init()
      * very early in its own startup (bootloader_clock_init()/

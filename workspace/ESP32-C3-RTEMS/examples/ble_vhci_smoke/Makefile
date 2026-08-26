@@ -51,7 +51,8 @@ INCLUDES := \
   -I$(VENDOR)/heap/include \
   -I$(VENDOR)/hal/esp32c3/include -I$(VENDOR)/hal/platform_port/include -I$(VENDOR)/hal/include \
   -I$(VENDOR)/efuse/include -I$(VENDOR)/efuse/private_include \
-  -I$(VENDOR)/efuse/esp32c3/include -I$(VENDOR)/efuse/esp32c3/private_include
+  -I$(VENDOR)/efuse/esp32c3/include -I$(VENDOR)/efuse/esp32c3/private_include \
+  -I$(VENDOR)/bootloader_support/private_include
 
 # -march=rv32imc_zicsr (not plain rv32imc): hw_random.c needs a real CSR
 # instruction - see ../../upstream-bt-driver/vendor/README.md's Build
@@ -71,7 +72,7 @@ OBJS := \
   heap_caps.o lock.o nvs_stub.o queue.o semphr.o task.o \
   bt.o \
   esp_clk.o hw_random.o mac_addr.o periph_ctrl.o esp_gpio_reserve.o \
-  rtc_clk.o rtc_time.o rtc_clk_init.o \
+  rtc_clk.o rtc_time.o rtc_clk_init.o bootloader_soc.o bootloader_hw_init.o \
   phy_init.o phy_common.o lib_printf.o phy_callback.o phy_init_data.o \
   esp_efuse_api.o esp_efuse_utility_generic.o esp_efuse_fields_generic.o \
   esp_efuse_table.o esp_efuse_utility_c3.o esp_efuse_fields_c3.o \
@@ -120,6 +121,10 @@ rtc_clk.o: $(VENDOR)/esp_hw_support/port/esp32c3/rtc_clk.c
 rtc_time.o: $(VENDOR)/esp_hw_support/port/esp32c3/rtc_time.c
 	$(CC) $(CFLAGS) -c $< -o $@
 rtc_clk_init.o: $(VENDOR)/esp_hw_support/port/esp32c3/rtc_clk_init.c
+	$(CC) $(CFLAGS) -c $< -o $@
+bootloader_soc.o: $(VENDOR)/bootloader_support/src/esp32c3/bootloader_soc.c
+	$(CC) $(CFLAGS) -c $< -o $@
+bootloader_hw_init.o: $(VENDOR)/bootloader_support/src/esp32c3/bootloader_hw_init.c
 	$(CC) $(CFLAGS) -c $< -o $@
 phy_init.o: $(VENDOR)/esp_phy/src/phy_init.c
 	$(CC) $(CFLAGS) -include esp_attr.h -include esp_heap_caps.h -c $< -o $@
