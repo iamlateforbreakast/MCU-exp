@@ -67,6 +67,19 @@ rtems_task Init(rtems_task_argument ignored)
 
     printf("\nBLE controller-only smoke test (untested on real hardware)\n");
 
+    /* DIAG (2026-08-26): temporary JTAG-attach grace period - JTAG's own
+     * "reset halt" only resets the CPU core, not full chip/peripheral
+     * state, so replaying the crash that way lands somewhere different
+     * from a real power-on boot. This gives a wide window to attach and
+     * plain-`halt` (not reset) a genuine power-on boot before it reaches
+     * the crash, without needing split-second timing. */
+    printf("DIAG: sleeping 10s for JTAG attach...\n");
+    {
+        rtems_interval per_second = rtems_clock_get_ticks_per_second();
+        rtems_task_wake_after(per_second * 10);
+    }
+    printf("DIAG: done sleeping, continuing\n");
+
     /* Real ESP-IDF's 2nd-stage bootloader (bootloader_init(), real
      * bootloader_esp32c3.c) runs chip-safety hardware bring-up before any
      * app code - brownout/clock-glitch hardware reset detector enable,

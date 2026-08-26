@@ -257,9 +257,28 @@ correctly) - but the assert persists unchanged. A follow-up test
 temporarily matched this port's blob+bt.c to the exact real-IDF-tested
 pairing while keeping both fixes - still hit the identical assert,
 conclusively proving the remaining gap is genuine RTEMS-runtime
-behavior (task/interrupt timing, scheduling semantics), not any
-remaining source or config difference. See
-`upstream-bt-driver/vendor/README.md`
+behavior, not any remaining source or config difference.
+
+**JTAG finally working, real backtrace obtained.** The debug module
+needs a genuine power cycle (unplug/replug USB) - a soft RTS-pin reset
+(what every `esptool.py` flash ends in) leaves it permanently wedged;
+confirmed by elimination across openocd builds, containers, and
+firmware state before finding this. Once attached, OpenOCD's own
+`halt`/`resume` don't re-wedge it, but `reset halt` is a core-only
+reset that doesn't reproduce real boot-time behavior - added a
+temporary startup delay to `init.c` to give a safe attach window
+instead. Caught the real crash live (breakpoint at `r_assert_param`,
+before the actual trap fired) and walked the stack manually to get a
+real call chain: `btdm_controller_on_reset -> r_rwip_reset ->
+r_hci_init/r_rwble_init -> r_lld_init -> r_lld_core_init ->
+r_emi_get_mem_addr_by_offset -> [assert]`. Disassembled that function
+in full: the assert is a hardware-register-vs-static-table consistency
+check entirely inside the closed blob (`0x60031204+region_id*4`'s
+current value vs. a value baked into the blob's own `.rodata` lookup
+table) - real, precise, but both sides of the comparison are inside
+code we can't see, the genuine boundary of what's diagnosable without
+comparing a live register read against a working real-IDF run at the
+same point. See `upstream-bt-driver/vendor/README.md`
 for the full build recipe and blob-version-pinning writeup, and
 `upstream-bt-driver/README.md` for the full mapping table, real
 ESP32-C3 interrupt-source numbers, and phased plan.
