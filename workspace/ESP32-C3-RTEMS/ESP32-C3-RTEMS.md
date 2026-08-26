@@ -275,10 +275,29 @@ r_emi_get_mem_addr_by_offset -> [assert]`. Disassembled that function
 in full: the assert is a hardware-register-vs-static-table consistency
 check entirely inside the closed blob (`0x60031204+region_id*4`'s
 current value vs. a value baked into the blob's own `.rodata` lookup
-table) - real, precise, but both sides of the comparison are inside
-code we can't see, the genuine boundary of what's diagnosable without
-comparing a live register read against a working real-IDF run at the
-same point. See `upstream-bt-driver/vendor/README.md`
+table).
+
+**Root cause quantitatively confirmed** by comparing a live register
+read against the real-IDF control experiment at the same point. The
+failing check is for EM region 3, register `0x60031210`
+(`offset=0x1000`, `region_id=3`). On the RTEMS run, `mdw 0x60031210`
+reads `0x00000000` - never written. On an identical real-IDF run,
+same board, same blob commit, the same register reads `0x10027c61`,
+and `(0x10027c61 >> 18) << 2 = 0x1000` matches the blob's own expected
+value in `em_base_reg_lut[4]` exactly. So the closed blob's
+`r_emi_em_base_init()` simply never programs region 3's hardware
+register on this RTEMS port, while it does on real IDF with the
+identical blob. The 200-byte allocation that maps to region 3
+succeeds (`DIAG: malloc_internal(200) -> ...` logs fine) - only the
+register write is missing, and that write happens entirely inside
+closed-blob code we can't see or step through further. Leading
+untested lead: one of the BLE feature-gate Kconfig macros added
+during the blob/bt.c pairing (`CONFIG_BT_CTRL_BLE_SCAN`,
+`_SECURITY_ENABLE`, `_MIN_CONN_INTERVAL_ENABLE`, `_DTM_ENABLE` - all
+currently `1` from a general "match real defaults" assumption, not
+independently re-verified per-macro against this exact blob/bt.c
+commit) may gate whether the blob configures this region at all. See
+`upstream-bt-driver/vendor/README.md`
 for the full build recipe and blob-version-pinning writeup, and
 `upstream-bt-driver/README.md` for the full mapping table, real
 ESP32-C3 interrupt-source numbers, and phased plan.
