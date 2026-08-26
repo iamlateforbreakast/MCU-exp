@@ -879,7 +879,9 @@ void esp_phy_load_cal_and_init(void)
         err = ESP_OK;
     }
 #else
+    printf("DIAG: calling register_chipv7_phy...\n");
     register_chipv7_phy(init_data, cal_data, PHY_RF_CAL_FULL);
+    printf("DIAG: register_chipv7_phy returned\n");
 #endif
 
 #if CONFIG_ESP_PHY_IMPROVE_RX_11B

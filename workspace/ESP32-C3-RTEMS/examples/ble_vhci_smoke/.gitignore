@@ -1,0 +1,6 @@
+# Fetched by the Makefile (git clone, pinned to the exact IDF v5.3.1
+# submodule commits), not vendored - see the Makefile and
+# ../../upstream-bt-driver/vendor/README.md's "Blob version pinning"
+# section for why.
+blobs/
+linkcmds-patched.stamp

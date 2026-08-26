@@ -134,11 +134,53 @@ linker-section-patch/`) - the 8 `_bt_*`/`_bt_controller_*` symbols real
 IDF's `ldgen` tool generates, plus a broader `.iram1.*`/`.dram1.*`
 section-handling gap the first real link attempt surfaced (used
 throughout the vendored code via `IRAM_ATTR`/`DRAM_ATTR`, not BLE-specific).
-Not linked into a full RTEMS application yet - no NimBLE host source and
-no example app - nothing BLE-related runs on hardware yet. See
-`upstream-bt-driver/vendor/README.md` for the full build recipe
-and exact remaining-work list, and `upstream-bt-driver/README.md` for the
-full mapping table, real ESP32-C3 interrupt-source numbers, and phased plan.
+**`examples/ble_vhci_smoke` - links and runs on real hardware, hangs in
+real RF calibration (2026-08-26)**: a controller-only smoke test (init,
+enable, HCI Reset over VHCI) is the first successful full executable
+link of this whole effort - `bt.c` + `esp_phy` + `efuse` + the two
+closed blobs (`libbtdm_app.a`, `libphy.a`) + the ROM-symbol linker
+fragment, into a real statically-linked RISC-V `.exe`. Getting there
+found and fixed a real, consequential bug: the blobs had been fetched
+with an unpinned `git clone` (whatever the default branch tip was that
+day), version-skewed against the IDF v5.3.1 source `bt.c` is vendored
+from. Pinning to the exact submodule commits real IDF v5.3.1 uses
+(read from esp-idf.git's own `.gitmodules`) resolved 11 of what had
+looked like 14 genuinely-missing ROM/blob symbols, and the ROM-symbols
+linker fragment itself needed regenerating against the correctly-pinned
+blob (it had been built by nm-ing the same wrong commit) - it grew from
+~180 to ~950 real PROVIDE()'d ROM addresses in the process (mostly
+ROM-resident AES/ECC crypto for BLE Secure Connections pairing that the
+newer, wrong blob commit didn't need). Three symbols
+(`coex_pti_v2`, `bt_bb_v2_init_cmplx`, `bt_bb_tx_cca_set`) are stubbed
+as no-ops after exhaustive real-source investigation found them in no
+real Espressif-published artifact at all (see
+`upstream-bt-driver/freertos-compat/src/bb_coex_stubs.c` for the full
+citation trail) - a real, cited unknown, not a validated equivalence.
+
+Flashed and run on the real board (QFN32 rev v0.4): boots, runs real
+RTEMS + the app, calls into the real closed blobs successfully - the
+blob's own build-version log (`BT controller compile version
+[aa16a46]`, matching the pinned commit exactly) and the real PHY blob's
+own version banner (`phy_version 1180,01f2a49,Jun 4 2024,16:34:25`)
+both print from genuine blob code executing on real silicon. It then
+hangs inside `register_chipv7_phy()` - the closed PHY blob's RF
+calibration entry point - confirmed by bracketing it with diagnostic
+prints (one prints right before the call, none after). This is now a
+real hardware/register-level question (a missing clock/power-domain
+setup step, an efuse-derived calibration constant gap, or an interrupt
+the calibration loop polls for) rather than a source-compilation one.
+A JTAG attempt (ephemeral `podman run --device .../usb/<bus>/<dev>
+--security-opt label=disable`, since plain compose `devices:` +
+SELinux denies raw USB nodes) got `openocd` attached to the chip's
+built-in USB-JTAG, but `halt`/examination fails even on a clean
+`reset halt` before any of this port's code runs - a JTAG/config
+problem independent of the actual hang, not yet resolved (exact
+error: `Timed out after 5s waiting for busy to go low
+(abstractcs=...)`, reproduced at multiple adapter speeds). See
+`upstream-bt-driver/vendor/README.md`
+for the full build recipe and blob-version-pinning writeup, and
+`upstream-bt-driver/README.md` for the full mapping table, real
+ESP32-C3 interrupt-source numbers, and phased plan.
 
 ## Flashing and monitoring
 
