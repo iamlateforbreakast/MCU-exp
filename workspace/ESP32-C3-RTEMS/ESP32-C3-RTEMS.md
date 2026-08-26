@@ -329,6 +329,52 @@ enable happens entirely inside the closed blob's own
 diagnosability boundary, this time on the *enable* side rather than
 the init side.
 
+**esp_coex vendored and wired in - real fix, real new bug found, but
+not this crash's cause.** Traced real IDF's actual boot sequence
+(`components/esp_system/startup.c`'s priority-ordered
+`ESP_SYSTEM_INIT_FN` registrations) and found `init_coexist()`
+(priority 204) calls a *third* closed blob, `libcoexist.a`
+(`esp_coex` component), that this port had never linked at all.
+Confirmed via the real `ble_controller_probe` control experiment's own
+generated `sdkconfig`: `CONFIG_SW_COEXIST_ENABLE=y` genuinely on, which
+activates real `coex_init()`/`coex_enable()` calls directly inside
+`bt.c` (previously silently compiled out, another wrong assumption in
+`sdkconfig-compat.h` of the same shape as the four feature-gate macros
+fixed earlier) - and `coex_enable()` runs immediately before the exact
+call (`btdm_controller_enable()`) that leads to the crash, making it a
+strong candidate. Vendored the small, open-source `esp_coex_adapter.c`
+OS-glue shim plus two small real compat shims real IDF itself needs on
+this target (`ets_timer_legacy.c`, `lib_printf.c`) and the closed
+`libcoexist.a` blob (pinned to the exact commit the real, working
+control experiment's own IDF checkout used -
+`d99dfd1883a1468b8986362a1382a4f46e918b60` - not a guessed newer
+version). Needed 8 more real ROM `PROVIDE()` addresses
+(`g_coa_funcs_p`, `coexist_funcs`, etc, from the same real
+`esp32c3.rom.ld` this port's other ROM symbols come from) and one more
+custom-section linker-patch addition (`.coexiram.*`, same treatment as
+the existing `.iram1.*`/`.dram1.*` handling). Full build+link+flash
+succeeded; **`coex_pre_init()` genuinely runs on real hardware** (real,
+new log lines: `I (coexist) coex firmware version: 4482466`,
+`coexist rom version 9387209`) - confirming this was a real, previously
+completely-missing component, not a dead end. Uncovered one more real
+bug along the way: this now exceeded the port's original
+`CONFIGURE_MAXIMUM_SEMAPHORES 8` budget, hit a real
+`assert(semphr->handle)` in `bt.c`'s `semphr_create_wrapper` (RTEMS
+genuinely returning NULL past the configured object limit, not a logic
+bug) - bumped `CONFIGURE_MAXIMUM_TASKS/SEMAPHORES/MESSAGE_QUEUES/TIMERS`
+generously. **After both fixes, re-ran on hardware: the `emi.c 331`
+assert still fires, identical register signature** (`s0=0x60031210`,
+`s2=4`, `s3=0x1000`, `s4=3` - the same region-3 check, byte-for-byte
+the same as every capture all investigation). This decisively
+**disproves** the leading hypothesis: even with coexistence genuinely
+initialized and enabled, region 3's EM register still doesn't survive
+from init-time write to enable-time check. Real, worthwhile fixes kept
+regardless (matches verified real IDF behavior, and any future fuller
+BLE example would have needed `esp_coex` anyway) - but the actual root
+cause remains inside the closed blob's own `btdm_controller_on_reset`/
+`r_rwip_reset` internals, unaffected by anything this port's own source
+or linked components control.
+
 **Live single-instruction JTAG verification attempted, blocked by
 tooling, not hardware.** Tried to catch the exact moment right after
 the region-3 `sw` instruction in `r_emi_em_base_init` executes (to see

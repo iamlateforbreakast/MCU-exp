@@ -23,7 +23,7 @@ def patch(content):
         sys.exit("ERROR: .text anchor not found - linkcmds.base format may have changed, see README.md")
     content = content.replace(
         text_anchor,
-        text_anchor + "    *(.iram1 .iram1.*)\n",
+        text_anchor + "    *(.iram1 .iram1.*)\n    *(.coexiram .coexiram.*)\n",
         1,
     )
 

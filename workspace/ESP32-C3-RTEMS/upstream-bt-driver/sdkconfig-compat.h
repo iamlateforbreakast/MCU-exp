@@ -35,15 +35,16 @@
  * (line 553), never in a real `#if`/`#ifdef` - a false positive from the
  * original grep-based macro count, not a real requirement.
  *
- * Deliberate build-choice overrides, not discovered defaults - flagged
- * explicitly so nobody mistakes them for what a stock build would do:
- * - `CONFIG_ESP_COEX_ENABLED`: a real esp32c3 build defaults this to
- *   **y** (`components/esp_coex/Kconfig:6`, `default y if
- *   (!SOC_WIRELESS_HOST_SUPPORTED)`, and esp32c3 has no
- *   `SOC_WIRELESS_HOST_SUPPORTED` define). Left undefined here on purpose
- *   to avoid pulling in `esp_coex`'s `private/esp_coexist_internal.h`
- *   (`bt.c:40`) for a minimal smoke test with no Wi-Fi component to
- *   coexist with - real scope-creep avoidance, not a recon miss.
+ * `CONFIG_ESP_COEX_ENABLED` was originally left undefined here on
+ * purpose, to avoid pulling in `esp_coex` for a minimal smoke test
+ * with no Wi-Fi component to coexist with. That turned out to matter:
+ * real IDF calls `coex_init()`/`coex_enable()` from inside `bt.c`
+ * itself even in a BT-only build (real esp32c3 default for
+ * `CONFIG_ESP_COEX_ENABLED` is **y** - `components/esp_coex/Kconfig:6`,
+ * `default y if (!SOC_WIRELESS_HOST_SUPPORTED)`, and esp32c3 has no
+ * `SOC_WIRELESS_HOST_SUPPORTED` define), so the scope-creep avoidance
+ * was itself a real behavioral gap, not just an unused feature being
+ * skipped - see the CORRECTION note below.
  */
 #ifndef _FREERTOS_COMPAT_SDKCONFIG_COMPAT_H_
 #define _FREERTOS_COMPAT_SDKCONFIG_COMPAT_H_
@@ -177,14 +178,35 @@
 #define CONFIG_BT_CTRL_DFT_TX_POWER_LEVEL_EFF 11
 
 /* --- Controller: coexistence-dependent tuning ---
- * `Kconfig.in:346-369`: COEX_PHY_CODED_TX_RX_TLIM_EFF's `default 0 if
- * !ESP_COEX_SW_COEXIST_ENABLE` applies since coexistence is off in this
- * minimal profile (see CONFIG_ESP_COEX_ENABLED note above). */
+ * `Kconfig.in:346-369`: COEX_PHY_CODED_TX_RX_TLIM_EFF's real default is
+ * 0 regardless of coexistence status here (confirmed directly against
+ * `ble_controller_probe`'s generated sdkconfig even with coexistence
+ * now enabled - see the CORRECTION note below). */
 #define CONFIG_BT_CTRL_COEX_PHY_CODED_TX_RX_TLIM_EFF 0
-/* CONFIG_ESP_COEX_ENABLED intentionally undefined - see file header;
- * real esp32c3 default is y, overridden here to avoid vendoring esp_coex. */
-/* CONFIG_SW_COEXIST_ENABLE intentionally omitted - not a real Kconfig
- * symbol in v5.3.1 at all; see file header. */
+/* CORRECTION (2026-08-26): the two lines above were wrong. The claim
+ * that CONFIG_SW_COEXIST_ENABLE isn't a real Kconfig symbol in v5.3.1
+ * was based on a `grep config SW_COEXIST_ENABLE` across bt-component
+ * Kconfig files only - it's actually selected from the WiFi
+ * component's Kconfig (`components/esp_wifi/Kconfig`), which a
+ * bt-only sparse checkout never had present to grep. Directly
+ * contradicted by evidence: the real, working `ble_controller_probe`
+ * control experiment's own generated `sdkconfig` (same board, same
+ * blob commit, confirmed PASS on hardware) has
+ * `CONFIG_SW_COEXIST_ENABLE=y`, `CONFIG_ESP_COEX_ENABLED=y`, and
+ * `CONFIG_ESP_COEX_SW_COEXIST_ENABLE=y` all genuinely on. Enabling
+ * these activates real `coex_init()`/`coex_enable()`/`coex_disable()`
+ * calls in `bt.c` (previously silently compiled out as dead code) -
+ * vendored the small, open-source `esp_coex_adapter.c` OS-glue shim
+ * (structurally identical to bt.c's own `osi_funcs_t`, same freertos-
+ * compat primitives) and the closed `libcoexist.a` blob (pinned to
+ * `d99dfd1883a1468b8986362a1382a4f46e918b60` - the exact commit the
+ * real, working control experiment's own IDF checkout used, not a
+ * guessed/newer version) to make this buildable. See
+ * `vendor/components/esp_coex/` and `esp32c3_rtems_ble_driver_status`
+ * memory for the investigation this came out of. */
+#define CONFIG_ESP_COEX_ENABLED 1
+#define CONFIG_ESP_COEX_SW_COEXIST_ENABLE 1
+#define CONFIG_SW_COEXIST_ENABLE 1
 
 /* --- Controller: AGC / channel assessment / LE ping / misc bools ---
  * `Kconfig.in:450-491`, all explicit Kconfig defaults. */

@@ -1153,3 +1153,19 @@ PROVIDE ( sdk_cfg_priv_opts = 0x3fcdf96c );
 PROVIDE ( unloaded_area = 0x3fcdfa2c );
 PROVIDE ( veryBigHexP256 = 0x3ff1ee48 );
 PROVIDE ( vhci_env_p = 0x3fcdff7c );
+
+/* esp_coex (libcoexist.a) ROM addresses - added 2026-08-26 when vendoring
+ * esp_coex to test the CONFIG_SW_COEXIST_ENABLE fix for "BLE assert
+ * emi.c" (see ESP32-C3-RTEMS.md). From
+ * components/esp_rom/esp32c3/ld/esp32c3.rom.ld in real IDF (esp32c3-dev
+ * container checkout, same source that btdm-rom-symbols.ld above was
+ * originally generated from), same PROVIDE()-real-ROM-address pattern
+ * as everything else in this file. */
+PROVIDE ( esp_coex_rom_version_get = 0x400018ac );
+PROVIDE ( coex_core_ble_conn_dyn_prio_get = 0x400018b8 );
+PROVIDE ( coex_env_ptr = 0x3fcdf848 );
+PROVIDE ( coex_pti_tab_ptr = 0x3fcdf844 );
+PROVIDE ( coex_schm_env_ptr = 0x3fcdf840 );
+PROVIDE ( coexist_funcs = 0x3fcdf83c );
+PROVIDE ( g_coa_funcs_p = 0x3fcdf838 );
+PROVIDE ( g_coex_param_ptr = 0x3fcdf834 );

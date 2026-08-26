@@ -52,7 +52,8 @@ INCLUDES := \
   -I$(VENDOR)/hal/esp32c3/include -I$(VENDOR)/hal/platform_port/include -I$(VENDOR)/hal/include \
   -I$(VENDOR)/efuse/include -I$(VENDOR)/efuse/private_include \
   -I$(VENDOR)/efuse/esp32c3/include -I$(VENDOR)/efuse/esp32c3/private_include \
-  -I$(VENDOR)/bootloader_support/private_include
+  -I$(VENDOR)/bootloader_support/private_include \
+  -I$(VENDOR)/esp_coex/include
 
 # -march=rv32imc_zicsr (not plain rv32imc): hw_random.c needs a real CSR
 # instruction - see ../../upstream-bt-driver/vendor/README.md's Build
@@ -78,7 +79,7 @@ OBJS := \
   esp_efuse_table.o esp_efuse_utility_c3.o esp_efuse_fields_c3.o \
   esp_efuse_api_key.o \
   efuse_hal_generic.o efuse_hal_c3.o \
-  bb_coex_stubs.o
+  bb_coex_stubs.o esp_coex_adapter.o coexist_lib_printf.o ets_timer_legacy.o
 
 init.o: init.c
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -157,10 +158,17 @@ efuse_hal_c3.o: $(VENDOR)/hal/esp32c3/efuse_hal.c
 
 bb_coex_stubs.o: $(FRTC)/src/bb_coex_stubs.c
 	$(CC) $(CFLAGS) -c $< -o $@
+esp_coex_adapter.o: $(VENDOR)/esp_coex/esp32c3/esp_coex_adapter.c
+	$(CC) $(CFLAGS) -include esp_attr.h -include soc/soc_caps.h -include pthread.h -c $< -o $@
+coexist_lib_printf.o: $(VENDOR)/esp_coex/src/lib_printf.c
+	$(CC) $(CFLAGS) -include stdarg.h -c $< -o $@
+ets_timer_legacy.o: $(VENDOR)/esp_timer/src/ets_timer_legacy.c
+	$(CC) $(CFLAGS) -include esp_attr.h -include assert.h -c $< -o $@
 
 BLOB_DIR := blobs
 LIBBTDM  := $(BLOB_DIR)/libbtdm_app.a
 LIBPHY   := $(BLOB_DIR)/libphy.a
+LIBCOEX  := $(BLOB_DIR)/libcoexist.a
 
 all: ble_vhci_smoke.exe
 
@@ -171,8 +179,8 @@ all: ble_vhci_smoke.exe
 # ~172 PROVIDE()'d ROM addresses on top of the BSP's real default script.
 ROM_SYMS := $(BT_DRIVER)/rom-linker-patch/btdm-rom-symbols.ld
 
-ble_vhci_smoke.exe: $(OBJS) $(LIBBTDM) $(LIBPHY) $(ROM_SYMS) linkcmds-patched.stamp
-	$(CC) $(OBJS) $(LIBBTDM) $(LIBPHY) $(ROM_SYMS) -o $@ $(LDFLAGS)
+ble_vhci_smoke.exe: $(OBJS) $(LIBBTDM) $(LIBPHY) $(LIBCOEX) $(ROM_SYMS) linkcmds-patched.stamp
+	$(CC) $(OBJS) $(LIBBTDM) $(LIBPHY) $(LIBCOEX) $(ROM_SYMS) -o $@ $(LDFLAGS)
 
 # Fetching the blobs (not vendored into the repo - large Apache-2.0
 # "Object form" binaries, see ../../upstream-bt-driver/vendor/README.md
@@ -199,6 +207,15 @@ ble_vhci_smoke.exe: $(OBJS) $(LIBBTDM) $(LIBPHY) $(ROM_SYMS) linkcmds-patched.st
 # esp_phy component wasn't part of this bt.c/blob pairing change).
 BTLIB_COMMIT := 0a08c4b32f3666003080b662a1a61794da24ff0f
 PHYLIB_COMMIT := 06e7625de197bc12797dd701d6762229bca01826
+# COEXLIB_COMMIT: not re-pinned alongside BTLIB_COMMIT's bt.c/blob pairing
+# change - this is instead the exact esp-coex-lib commit the real,
+# working `ble_controller_probe` control experiment's own IDF v5.3.1
+# checkout used (`esp32c3-dev` container, `.gitmodules` ->
+# components/esp_coex/lib submodule commit), chosen because it's the
+# most-validated reference available (proven PASS on this exact board),
+# not because it's version-matched to BTLIB_COMMIT - coexistence-lib
+# ABI drifts far less than the tightly-coupled bt.c/btdm-lib pairing.
+COEXLIB_COMMIT := d99dfd1883a1468b8986362a1382a4f46e918b60
 
 $(LIBBTDM):
 	mkdir -p $(BLOB_DIR)
@@ -211,6 +228,12 @@ $(LIBPHY):
 	git clone https://github.com/espressif/esp-phy-lib.git $(BLOB_DIR)/.esp-phy-lib
 	cd $(BLOB_DIR)/.esp-phy-lib && git checkout $(PHYLIB_COMMIT)
 	cp $(BLOB_DIR)/.esp-phy-lib/esp32c3/libphy.a $@
+
+$(LIBCOEX):
+	mkdir -p $(BLOB_DIR)
+	git clone https://github.com/espressif/esp-coex-lib.git $(BLOB_DIR)/.esp-coex-lib
+	cd $(BLOB_DIR)/.esp-coex-lib && git checkout $(COEXLIB_COMMIT)
+	cp $(BLOB_DIR)/.esp-coex-lib/esp32c3/libcoexist.a $@
 
 # Applying ../../upstream-bt-driver/linker-section-patch/ to the
 # installed BSP's linkcmds.base - see that directory's README.md for why

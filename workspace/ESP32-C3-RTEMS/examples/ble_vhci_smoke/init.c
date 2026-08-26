@@ -30,6 +30,7 @@
 
 #include "esp_bt.h"
 #include "soc/rtc.h"
+#include "private/esp_coexist_internal.h"
 
 /* upstream-bt-driver/vendor/components/bootloader_support/src/esp32c3/
  * bootloader_hw_init.c - no public header, this is the only caller. */
@@ -137,6 +138,24 @@ rtems_task Init(rtems_task_argument ignored)
         exit(1);
     }
 
+    /* Real ESP-IDF calls this from init_coexist() (components/esp_system/
+     * startup_funcs.c), a SECONDARY-stage system-init function that runs
+     * before app_main() - i.e. before any app code, including this one's
+     * own controller_init/enable calls, ever touches BT. This RTEMS port
+     * never linked esp_coex at all until now - found 2026-08-26 while
+     * investigating "BLE assert emi.c 164/331": bt.c itself calls
+     * coex_init()/coex_enable() directly (guarded by
+     * CONFIG_SW_COEXIST_ENABLE, previously assumed off - see
+     * sdkconfig-compat.h's CORRECTION note), and coex_enable() runs
+     * immediately before the exact call (btdm_controller_enable()) that
+     * leads to the crash. Not confirmed as the fix, but a real,
+     * previously-entirely-missing component, not a guess - see
+     * upstream-bt-driver/vendor/components/esp_coex/. */
+    extern esp_err_t coex_pre_init(void);
+    printf("calling esp_coex_adapter_register + coex_pre_init...\n");
+    esp_coex_adapter_register(&g_coex_adapter_funcs);
+    coex_pre_init();
+
     esp_bt_controller_config_t cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
     printf("calling esp_bt_controller_init...\n");
     esp_err_t err = esp_bt_controller_init(&cfg);
@@ -195,10 +214,17 @@ rtems_task Init(rtems_task_argument ignored)
 #define CONFIGURE_APPLICATION_NEEDS_CLOCK_DRIVER
 #define CONFIGURE_APPLICATION_NEEDS_CONSOLE_DRIVER
 
-#define CONFIGURE_MAXIMUM_TASKS 8
-#define CONFIGURE_MAXIMUM_SEMAPHORES 8
-#define CONFIGURE_MAXIMUM_MESSAGE_QUEUES 8
-#define CONFIGURE_MAXIMUM_TIMERS 8
+/* Bumped 2026-08-26 after adding esp_coex (coex_pre_init()): with
+ * CONFIG_SW_COEXIST_ENABLE on, bt.c/libcoexist.a create more RTEMS
+ * objects (semaphores, timers) than this port originally budgeted for
+ * - a real `xSemaphoreCreateCounting` -> NULL -> `assert(semphr->handle)`
+ * failure in bt.c's semphr_create_wrapper() at real, live count 8
+ * confirmed this was a hard limit, not a logic bug. Sized generously
+ * rather than tuned precisely - no tight memory constraint here. */
+#define CONFIGURE_MAXIMUM_TASKS 16
+#define CONFIGURE_MAXIMUM_SEMAPHORES 32
+#define CONFIGURE_MAXIMUM_MESSAGE_QUEUES 16
+#define CONFIGURE_MAXIMUM_TIMERS 16
 
 #define CONFIGURE_INIT_TASK_STACK_SIZE (8 * 1024)
 
