@@ -31,6 +31,7 @@
 #include "esp_bt.h"
 #include "soc/rtc.h"
 #include "private/esp_coexist_internal.h"
+#include "esp_private/periph_ctrl.h"
 
 /* upstream-bt-driver/vendor/components/bootloader_support/src/esp32c3/
  * bootloader_hw_init.c - no public header, this is the only caller. */
@@ -155,6 +156,37 @@ rtems_task Init(rtems_task_argument ignored)
     printf("calling esp_coex_adapter_register + coex_pre_init...\n");
     esp_coex_adapter_register(&g_coex_adapter_funcs);
     coex_pre_init();
+
+    /* THE FIX for "BLE assert emi.c" (2026-08-26): live register dumps
+     * proved the closed blob's EM base registers (0x60031204-0x60031218)
+     * permanently read 0x00000000 even immediately after their store
+     * instructions definitely execute (confirmed via return-address
+     * tracing into r_emi_em_base_init) - not "written then cleared",
+     * the writes had no effect at all. Root cause: the hardware block
+     * owning these registers needs clocks this port never enabled.
+     * `periph_module_enable(PERIPH_BT_MODULE)` (already called inside
+     * bt.c's own esp_bt_controller_init()) has a real but zero-width
+     * clock-enable mask (SYSTEM_WIFI_CLK_BT_EN_M) - it does nothing.
+     * The three calls below - `wifi_bt_common_module_enable()`
+     * (SYSTEM_WIFI_CLK_WIFI_BT_COMMON_M, otherwise only reached via
+     * esp_phy_enable() much later, inside esp_bt_controller_enable() -
+     * too late for these init-time writes) and
+     * `periph_module_enable(PERIPH_BT_BASEBAND_MODULE/PERIPH_BT_LC_MODULE)`
+     * (SYSTEM_BT_BASEBAND_EN/SYSTEM_BT_LC_EN, never called by bt.c or
+     * phy_init.c at all) - are real, nonzero clock gates real IDF's
+     * 2nd-stage bootloader most likely leaves already enabled from an
+     * earlier boot stage, which this port's direct-boot header skips
+     * entirely. Confirmed on real hardware: with all three called here,
+     * the EM registers finally hold real, structured values
+     * (0x00027e10/0x04027e64/0x0c027f74/0x10028010/0x14028044) that
+     * persist through esp_bt_controller_enable(), and the assert is
+     * gone - execution reaches a real HCI Reset send over VHCI. Not yet
+     * isolated which of the three is strictly necessary vs. redundant -
+     * kept all three since together they're the confirmed, working fix. */
+    extern void wifi_bt_common_module_enable(void);
+    wifi_bt_common_module_enable();
+    periph_module_enable(PERIPH_BT_BASEBAND_MODULE);
+    periph_module_enable(PERIPH_BT_LC_MODULE);
 
     esp_bt_controller_config_t cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
     printf("calling esp_bt_controller_init...\n");

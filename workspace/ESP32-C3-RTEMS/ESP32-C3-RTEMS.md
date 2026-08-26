@@ -391,6 +391,56 @@ this is now a known, real gap in the toolchain for anything needing
 `continue`/`stepi` over GDB, not just a documented ambiguity in
 telnet's `resume`.
 
+**RESOLVED (2026-08-26): the "BLE assert emi.c" crash is fixed.**
+Abandoned live single-instruction JTAG (blocked by tooling) in favor of
+a much cheaper technique: a diagnostic `printf` reading the EM
+registers directly, right inside `bt.c`'s already-working
+`malloc_internal_wrapper` and bracketed around `esp_bt_controller_enable()`
+- no JTAG, no power cycles, just rebuild+reflash+serial-capture. This
+proved conclusively that **all five** EM base registers
+(`0x60031204`-`0x60031218`, not just region 3) permanently read
+`0x00000000` even immediately after their store instructions
+*definitely* execute (confirmed via `__builtin_return_address()`
+tracing the malloc call directly into `r_emi_em_base_init`, and via
+control flow reaching the next region's malloc only after the prior
+region's store instruction). This ruled out "written then cleared" in
+favor of "the write never has any effect" - the classic signature of a
+clock-gated hardware block, not a software ordering bug.
+
+Checked what actually clocks this block: `bt.c` already calls
+`periph_module_enable(PERIPH_BT_MODULE)`, but that peripheral's
+clock-enable mask (`SYSTEM_WIFI_CLK_BT_EN_M`) is a real, zero-width
+bitfield in this chip's own headers - it does nothing. The real,
+nonzero clock gates are `wifi_bt_common_module_enable()`
+(`SYSTEM_WIFI_CLK_WIFI_BT_COMMON_M`) - only ever reached via
+`esp_phy_enable()`, itself only called from `esp_bt_controller_enable()`,
+*after* `esp_bt_controller_init()` already tried and failed to write
+these registers - and `PERIPH_BT_BASEBAND_MODULE`/`PERIPH_BT_LC_MODULE`
+(`SYSTEM_BT_BASEBAND_EN`/`SYSTEM_BT_LC_EN`), which neither `bt.c` nor
+`phy_init.c` ever call at all. Real IDF's 2nd-stage bootloader (which
+this port's direct-boot header skips entirely) most likely leaves
+these clocks already enabled from an earlier boot stage.
+
+**The fix**: call `wifi_bt_common_module_enable()` and
+`periph_module_enable(PERIPH_BT_BASEBAND_MODULE)`/
+`periph_module_enable(PERIPH_BT_LC_MODULE)` explicitly in
+`examples/ble_vhci_smoke/init.c`, before `esp_bt_controller_init()`.
+Confirmed on real hardware: the EM registers now hold real, structured
+values (`0x00027e10`/`0x04027e64`/`0x0c027f74`/`0x10028010`/`0x14028044`)
+that persist all the way through `esp_bt_controller_enable()` - no
+assert, no crash. Execution now reaches VHCI callback registration and
+sends a real HCI Reset command over VHCI. Not yet isolated which of
+the three calls is strictly necessary vs. redundant - kept all three
+since together they're the confirmed, working fix.
+
+**Status now**: blocked on a *new*, later-stage issue - the app hangs
+waiting for the HCI Reset response (no crash, just no response within
+the 2-second timeout... and no timeout message printed either within
+much longer waits, suggesting a genuine hang rather than a working
+timeout path). This is real further-BLE-bring-up work, not a return to
+the emi.c wall - see `esp32c3_rtems_ble_driver_status` memory for
+next-step tracking.
+
 See `upstream-bt-driver/vendor/README.md`
 for the full build recipe and blob-version-pinning writeup, and
 `upstream-bt-driver/README.md` for the full mapping table, real
