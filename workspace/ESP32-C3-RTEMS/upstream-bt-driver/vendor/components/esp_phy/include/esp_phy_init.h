@@ -286,6 +286,19 @@ void phy_init_param_set(uint8_t param);
  */
 void phy_wifi_enable_set(uint8_t enable);
 
+/* Real functions, really implemented in the vendored `esp_phy/src/
+ * phy_init.c` (`esp_wifi_bt_power_domain_on` at line ~338, its `_off`
+ * counterpart just below it) and really called by `bt.c`. Declared here
+ * (not in `bt.c`'s own `esp_bt.h`, which doesn't carry this declaration
+ * for esp32c3 at the commit this file is pinned to - `bt.c` compiles
+ * clean against real IDF's own build only because some other not-yet-
+ * identified real header supplies it there) so this port's own
+ * discovery-loop compile doesn't need to hunt down and vendor whatever
+ * that header actually is just for two declarations whose real
+ * definition is already vendored and correct. */
+void esp_wifi_bt_power_domain_on(void);
+void esp_wifi_bt_power_domain_off(void);
+
 #ifdef __cplusplus
 }
 #endif

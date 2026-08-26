@@ -184,24 +184,60 @@ up at. Reflashed and confirmed on real hardware: the diagnostic prints
 now show `register_chipv7_phy()` actually **returning** - RF
 calibration completes for real.
 
-Execution now gets further, into a new, distinct problem: a real
-assert from the closed blob's own internal code (`BLE assert emi.c
-164, param 00000000 00001000` - "emi" = the blob's internal Exchange
-Memory/buffer-pool allocator; the assert message is opaque past that,
-printed via the blob's own ROM-provided assert handler). Not yet
-investigated - likely an `esp_bt_controller_config_t` field (real IDF's
-`CONFIG_BT_CTRL_*` values feeding `BT_CONTROLLER_INIT_CONFIG_DEFAULT()`
-in `examples/ble_vhci_smoke/init.c`) that's zero/wrong versus what the
-closed blob's memory-pool sizing expects.
+Execution then hit a new, distinct problem: a real assert from the
+closed blob's own internal code (`BLE assert emi.c 164, param
+00000000 00001000` - "emi" = the blob's internal Exchange
+Memory/buffer-pool allocator). Investigated at length (2026-08-26):
+
+- Every `esp_bt_controller_config_t` field (`CONFIG_BT_CTRL_*` values
+  feeding `BT_CONTROLLER_INIT_CONFIG_DEFAULT()`) checked correct
+  against real IDF defaults - ruled out.
+- Both memory-allocation callbacks the blob calls into (`osi_funcs_t`'s
+  `_malloc` and `_malloc_internal`) instrumented and confirmed healthy
+  with real numbers - `malloc_free_space()` shows 233KB free right
+  before the assert, and every one of the disassembly-traced EM-region
+  allocation sizes (328/1080/616/200/1260/540/750/102/272×9 bytes)
+  returns a real non-NULL address. Heap exhaustion is definitively
+  ruled out, not just inferred.
+- Cross-checked against Zephyr's ESP32-C3 BLE port
+  (`zephyrproject-rtos/hal_espressif`/`zephyr`) - its driver code is
+  structurally identical to this port's approach, and it pins
+  `esp32c3-bt-lib` at commit `0a08c4b32f3666003080b662a1a61794da24ff0f`,
+  which turned out to be exactly real ESP-IDF's own `master` branch pin
+  (not Zephyr-specific). The original blob/`bt.c` version-skew fix
+  earlier had paired `bt.c` with an *older* blob (v5.3.1's own pin) -
+  correctly self-consistent, but not what real production firmware
+  (or Zephyr) actually ships. Re-vendored `bt.c`/`esp_bt.h` from the
+  exact real-IDF commit (`8da824cd0ede2d6c7317c5a65504bce78762b67b`)
+  that paired with this newer blob commit, re-fetched the blob at that
+  pin, and regenerated the ROM-symbols fragment against it (1064
+  matched ROM addresses, up from 953) - full writeup in
+  `upstream-bt-driver/vendor/README.md`. This got further: real,
+  richer BT-controller log lines never seen before (`Using main XTAL
+  as clock source`, `Feature Config, ADV:1, BLE_50:1, DTM:1, SCAN:1,
+  CCA:0, SMP:1, CONNECT:1`) and a compile-version string matching the
+  new blob's own commit message exactly - but it still hits the same
+  assert (now at internal line 331, same `00000000 00001000` params -
+  a shifted line number from the newer blob's source, not a different
+  bug) and this time the assert genuinely **traps**: RTEMS's own fatal-
+  exception handler caught a real RISC-V breakpoint (`ebreak`,
+  `mcause=3`) and printed a full register dump, decoded via
+  `riscv-rtems7-addr2line` to land inside the blob's own
+  `r_assert_param` (flash-resident in this newer blob, not a ROM
+  function like the older blob's build had it) - real, concrete PC-
+  level visibility, just not (yet) a full call-stack backtrace back to
+  the actual failing check inside `emi.c`.
 
 A JTAG attempt (ephemeral `podman run --device .../usb/<bus>/<dev>
 --security-opt label=disable`, since plain compose `devices:` +
 SELinux denies raw USB nodes) got `openocd` attached to the chip's
 built-in USB-JTAG, but `halt`/examination failed even on a clean
 `reset halt` before any of this port's code ran - a JTAG/config
-problem independent of the clock-tree bug (already fixed without it),
-not yet resolved (exact error: `Timed out after 5s waiting for busy to
-go low (abstractcs=...)`, reproduced at multiple adapter speeds). See
+problem independent of the actual bug (exact error: `Timed out after
+5s waiting for busy to go low (abstractcs=...)`, reproduced at
+multiple adapter speeds and 2 different openocd config compositions -
+a real tooling blocker, not yet resolved, would need a different probe
+or openocd build to get a full backtrace at the assert site). See
 `upstream-bt-driver/vendor/README.md`
 for the full build recipe and blob-version-pinning writeup, and
 `upstream-bt-driver/README.md` for the full mapping table, real

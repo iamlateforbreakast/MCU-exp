@@ -188,7 +188,16 @@ ble_vhci_smoke.exe: $(OBJS) $(LIBBTDM) $(LIBPHY) $(ROM_SYMS) linkcmds-patched.st
 # vendor/README.md's "Blob version pinning" section) - 11 of those 14
 # were simply a newer blob commit not defining/needing what this bt.c
 # expects, not anything actually missing from Espressif's real output.
-BTLIB_COMMIT := bfdfe8f851c99ced8316b133b0b15521917ea049
+# 2026-08-26: re-pinned from IDF v5.3.1's commits to the commits paired
+# with bt.c's own newer vendored version (see sdkconfig-compat.h's
+# "Re-vendoring bt.c" note) - found via Zephyr's ESP32-C3 BLE port, which
+# turned out to just track real ESP-IDF's own `master` branch. BTLIB_COMMIT
+# is exactly the commit real IDF's own bt.c was updated to pair with
+# (esp-idf.git commit 8da824cd0ede2d6c7317c5a65504bce78762b67b, "fix(bt):
+# Update bt lib for ESP32-C3 and ESP32-S3" - 2 minutes after this blob
+# commit's own timestamp). PHYLIB_COMMIT is not re-pinned here (real IDF's
+# esp_phy component wasn't part of this bt.c/blob pairing change).
+BTLIB_COMMIT := 0a08c4b32f3666003080b662a1a61794da24ff0f
 PHYLIB_COMMIT := 06e7625de197bc12797dd701d6762229bca01826
 
 $(LIBBTDM):

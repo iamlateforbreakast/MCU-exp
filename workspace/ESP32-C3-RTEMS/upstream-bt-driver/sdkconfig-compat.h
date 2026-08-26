@@ -216,4 +216,40 @@
  * itself defaults to 20 (dBm). */
 #define CONFIG_ESP_PHY_MAX_TX_POWER 20
 
+/* --- Re-vendoring bt.c from real ESP-IDF's `master` branch (2026-08-26) ---
+ * Pinning v5.3.1's bt.c against v5.3.1's blob commit worked (see
+ * upstream-bt-driver/vendor/README.md's "Blob version pinning" section)
+ * but still hit a real assert deep inside the closed blob's own code
+ * ("BLE assert emi.c 164") past PHY calibration. Cross-checking Zephyr's
+ * ESP32-C3 BLE port found it pins `esp32c3-bt-lib` at commit
+ * `0a08c4b32f3666003080b662a1a61794da24ff0f` - which turned out to be
+ * exactly real ESP-IDF's own unreleased `master` branch's pin (confirmed
+ * via `git ls-tree` across v5.4/v5.4.1/v5.4.2/v5.5/v5.5.1/master - only
+ * `master` matches). Re-vendored `bt.c` from real IDF `master` (not
+ * Zephyr's fork, which has already been ported to Zephyr's own kernel
+ * APIs) to keep pace with the matching blob version. These macros are
+ * the ones the newer bt.c needs beyond the ~43 above - all real, cited
+ * against `components/bt/controller/esp32c3/Kconfig.in` at the same
+ * `master` commit. Everything here is a new BLE-controller-internal
+ * debug-log subsystem (`BT_CTRL_LE_LOG_*`/`BLE_LOG_*`) that defaults off,
+ * or a feature-gate macro that defaults on (this port had these features
+ * unconditionally compiled in before the gates existed, so `1` is the
+ * behavior-preserving choice, not just the Kconfig default). */
+#define CONFIG_BT_CTRL_CHECK_CONFIG_EFF 1
+#define CONFIG_BT_CTRL_RUN_IN_FLASH_ONLY 0
+#define CONFIG_BT_CTRL_BLE_MIN_CONN_INTERVAL_ENABLE 1
+#define CONFIG_BT_CTRL_DTM_ENABLE 1
+#define CONFIG_BT_CTRL_BLE_MASTER 1
+#define CONFIG_BT_CTRL_BLE_SCAN 1
+#define CONFIG_BT_CTRL_BLE_SECURITY_ENABLE 1
+#define CONFIG_BT_CTRL_BLE_ADV 1
+/* CONFIG_BT_CTRL_LE_LOG_EN and everything depending on it
+ * (CONFIG_BLE_LOG_ENABLED, CONFIG_BT_CTRL_LE_HCI_LOG_EN,
+ * CONFIG_BT_CTRL_LE_LOG_{BUF1,BUF2,HCI_BUF,PARTITION}_SIZE,
+ * CONFIG_BT_CTRL_LE_LOG_{STORAGE,SPI_OUT}_EN,
+ * CONFIG_BT_CTRL_LE_LOG_MODE_BLE_LOG_V2,
+ * CONFIG_BT_CTRL_LE_LOG_DUMP_ONLY, CONFIG_BT_BLE_LOG_SPI_OUT_ENABLED)
+ * intentionally left undefined - Kconfig.in:601-602 real default is
+ * `n` (off) unless `BLE_LOG_LL_ENABLED`, which this port doesn't set. */
+
 #endif /* _FREERTOS_COMPAT_SDKCONFIG_COMPAT_H_ */

@@ -34,9 +34,22 @@
 #define MALLOC_CAP_SPIRAM     (1<<10)
 #define MALLOC_CAP_INTERNAL   (1<<11)
 #define MALLOC_CAP_DEFAULT    (1<<12)
+/* Real value from ESP-IDF `master`'s components/heap/include/
+ * esp_heap_caps.h:43 - needed vendoring bt.c from master (2026-08-26,
+ * see sdkconfig-compat.h's "Re-vendoring bt.c" note). "Retention DMA"
+ * (deep-sleep memory retention) has no RTEMS equivalent here either -
+ * same deliberate simplification as every other cap, ignored. */
+#define MALLOC_CAP_RETENTION  (1<<14)
 
 void *heap_caps_malloc(size_t size, uint32_t caps);
 void *heap_caps_calloc(size_t n, size_t size, uint32_t caps);
 esp_err_t heap_caps_add_region(intptr_t start, intptr_t end);
+/* Real signature from the same header, line 215. Backed by RTEMS's own
+ * real `malloc_free_space()` (`rtems/libcsupport.h:89`) - a real,
+ * non-approximated free-heap query, unlike the capability-ignoring
+ * malloc/calloc above (this chip's flat memory map makes capability
+ * distinctions moot for allocation *success*, but a real free-space
+ * number is cheap to provide correctly). */
+size_t heap_caps_get_free_size(uint32_t caps);
 
 #endif /* _FREERTOS_COMPAT_ESP_HEAP_CAPS_H_ */

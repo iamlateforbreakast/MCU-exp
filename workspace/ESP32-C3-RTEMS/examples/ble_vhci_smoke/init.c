@@ -132,6 +132,8 @@ rtems_task Init(rtems_task_argument ignored)
         exit(1);
     }
 
+    extern size_t malloc_free_space(void);
+    printf("DIAG: malloc_free_space() before enable = %u\n", (unsigned) malloc_free_space());
     printf("calling esp_bt_controller_enable(ESP_BT_MODE_BLE)...\n");
     err = esp_bt_controller_enable(ESP_BT_MODE_BLE);
     if (err != ESP_OK) {
