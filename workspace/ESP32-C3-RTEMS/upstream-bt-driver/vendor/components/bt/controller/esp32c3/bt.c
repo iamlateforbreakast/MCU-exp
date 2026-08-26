@@ -311,6 +311,7 @@ static int task_create_wrapper(void *task_func, const char *name, uint32_t stack
 static void task_delete_wrapper(void *task_handle);
 static bool is_in_isr_wrapper(void);
 static void *malloc_internal_wrapper(size_t size);
+static void *diag_malloc_wrapper(size_t size);
 static int read_mac_wrapper(uint8_t mac[6]);
 static void srand_wrapper(unsigned int seed);
 static int rand_wrapper(void);
@@ -376,7 +377,7 @@ static const struct osi_funcs_t osi_funcs_ro = {
     ._task_delete = task_delete_wrapper,
     ._is_in_isr = is_in_isr_wrapper,
     ._cause_sw_intr_to_core = NULL,
-    ._malloc = malloc,
+    ._malloc = diag_malloc_wrapper,
     ._malloc_internal = malloc_internal_wrapper,
     ._free = free,
     ._read_efuse_mac = read_mac_wrapper,
@@ -691,6 +692,17 @@ static void *malloc_internal_wrapper(size_t size)
     if(p == NULL) {
         ESP_LOGE(BT_LOG_TAG, "Malloc failed");
     }
+    return p;
+}
+
+/* DIAG (2026-08-26): temporary instrumentation of osi_funcs_ro._malloc
+ * (raw libc malloc, no logging on failure) to check whether it's
+ * returning NULL during controller init - see the "BLE assert emi.c
+ * 164, param 00000000 00001000" investigation. */
+static void *diag_malloc_wrapper(size_t size)
+{
+    void *p = malloc(size);
+    printf("DIAG: malloc(%u) -> %p\n", (unsigned) size, p);
     return p;
 }
 
