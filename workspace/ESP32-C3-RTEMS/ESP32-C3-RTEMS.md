@@ -474,14 +474,26 @@ To monitor the console (UART0/USB-Serial-JTAG) afterward, open
 /dev/ttyACM0 115200`, `python3 -m serial.tools.miniterm /dev/ttyACM0
 115200`, or `esptool.py --chip esp32c3 -p /dev/ttyACM0 monitor`).
 
-### WORKING (2026-09-14): BLE controller up, advertising, HCI Reset excepted
+### PARTIAL (2026-09-14): HCI layer works, advertising does NOT reach the air
 
-`examples/ble_vhci_smoke` now runs a real BLE sequence on hardware and passes:
-Read Local Version -> LE Read Buffer Size -> LE Set Advertising Parameters ->
-LE Set Advertising Data -> LE Set Advertising Enable, **all five returning HCI
-status `0x00`**, advertising as "RTEMS" (ADV_NONCONN_IND, 100 ms). Read Local
-Version answers `04 0e 0c 05 01 10 00 09 16 00 09 e5 02 16 00` - HCI and LMP
-version 9 (Bluetooth 5.0), manufacturer `0x02e5` (Espressif).
+`examples/ble_vhci_smoke` runs Read Local Version -> LE Read Buffer Size ->
+LE Set Advertising Parameters -> LE Set Advertising Data -> LE Set Advertising
+Enable, **all five returning HCI status `0x00`**. Read Local Version answers
+`04 0e 0c 05 01 10 00 09 16 00 09 e5 02 16 00` - HCI and LMP version 9
+(Bluetooth 5.0), manufacturer `0x02e5` (Espressif). So the controller really is
+alive and servicing commands.
+
+**But it does not actually transmit.** Verified against a BLE scanner on the
+host (`rfkill unblock bluetooth`, then `bluetoothctl scan le`), the board is
+invisible when running this port, while the real-IDF control app in
+`../ESP32-C3/ble_controller_probe/` - same board, same blob, byte-identical HCI
+sequence, also skipping HCI Reset - shows up immediately as
+`Device 9C:CC:01:7C:34:F2 RTEMS`. Do not read "status 0x00" as "working radio";
+that mistake was made once already in this file's history.
+
+Skipping HCI Reset is nevertheless legitimate, and this is now tested rather
+than assumed: the IDF control app advertises perfectly well without it, so the
+Reset crash below is not what blocks advertising.
 
 **The long-standing illegal-instruction crash is specific to HCI Reset, and
 only to it.** `hci_reset_cmd_handler` re-invokes `btdm_controller_on_reset ->
@@ -507,13 +519,22 @@ since 2026-08-25 as "a reasoned best guess, not a confirmed fact" - is now
 **confirmed at runtime**: the ISR count climbs from 0 to ~1500 as soon as the
 radio transmits, with `sp_in == sp_out` on the interrupt stack (648/4080 used).
 
-**Known remaining issue.** The blob emits `BLE_ERR_<target>_<0>_<now>_<n>` from
-`r_sch_prog_ble_push_hack` (its `blez a5` programming-margin check) roughly once
-per advertising event, consistently one half-slot late, and advertising wedges
-non-deterministically after 10-40 s. Prime untested suspect: this port's
-`esp_intr_alloc` shim discards `flags` entirely, so `ESP_INTR_FLAG_LEVEL3` is
-dropped and `bsp_interrupt_facility_initialize()` gives every CPU interrupt the
-same priority - the BLE ISR cannot preempt anything.
+**The blocker.** The blob emits `BLE_ERR_<target>_<0>_<now>_<n>` from
+`r_sch_prog_ble_push_hack` (its `blez a5` programming-margin check) on
+essentially *every* advertising event - target slot 705 versus now 706, i.e. the
+software reaches the radio-programming step after the event time has already
+passed - and the radio then wedges after roughly 7-40 s. The identical sequence
+under real IDF produces **zero** of these. Since `rwip_prog_delay` is 3
+half-slots (~940 us), anything adding about a millisecond of latency between the
+radio interrupt and the blob programming the next event breaks every event, and
+that is the thing to measure next (timestamp the BT ISR with the 16 MHz systimer
+and compare against the ~940 us budget).
+
+Prime untested suspect: this port's `esp_intr_alloc` shim discards `flags`
+entirely, so the `ESP_INTR_FLAG_LEVEL3` that IDF requests is dropped, and
+`bsp_interrupt_facility_initialize()` gives every CPU interrupt the same
+priority - the BLE ISR cannot preempt anything, including the RTEMS tick and a
+polled 115200-baud console whose own `BLE_ERR` output costs ~2 ms per line.
 
 **Diagnostics.** The serial instruments that cracked this live in
 `examples/ble_vhci_smoke/ble_diag.{c,h}` and are off by default; build with

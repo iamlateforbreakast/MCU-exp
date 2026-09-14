@@ -75,11 +75,16 @@ static const uint8_t hci_read_local_version[]  = { 0x01, 0x01, 0x10, 0x00 };
 static const uint8_t hci_le_read_buffer_size[] = { 0x01, 0x02, 0x20, 0x00 };
 
 /* 7.8.5 LE Set Advertising Parameters: min/max interval 0x00a0 (100ms),
- * type 0x03 (ADV_NONCONN_IND), own addr public, no peer, all 3 channels,
- * no filtering. */
+ * type 0x00 (ADV_IND, connectable undirected), own addr public, no peer,
+ * all 3 channels, no filtering.
+ *
+ * Connectable on purpose: phone Bluetooth *settings* screens only list
+ * connectable devices, so ADV_NONCONN_IND (0x03) is invisible there even
+ * when it is being transmitted correctly - it shows up only in a scanner
+ * app. Using ADV_IND keeps the over-the-air check honest with any phone. */
 static const uint8_t hci_le_set_adv_params[] = {
     0x01, 0x06, 0x20, 0x0f,
-    0xa0, 0x00, 0xa0, 0x00, 0x03, 0x00, 0x00,
+    0xa0, 0x00, 0xa0, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x07, 0x00
 };
@@ -89,7 +94,7 @@ static const uint8_t hci_le_set_adv_params[] = {
  * name "RTEMS". */
 static const uint8_t hci_le_set_adv_data[] = {
     0x01, 0x08, 0x20, 0x20,
-    0x09,
+    0x0a,
     0x02, 0x01, 0x06,
     0x06, 0x09, 'R', 'T', 'E', 'M', 'S',
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -312,7 +317,7 @@ rtems_task Init(rtems_task_argument ignored)
      * init and HCI command processing and only starts climbing once the
      * radio is really transmitting, which is what confirmed bsp-patch/'s
      * RWBLE_INTR routing at runtime. */
-    for (int i = 0; i < 12; i++) {
+    for (int i = 0; i < 60; i++) {
         rtems_task_wake_after(rtems_clock_get_ticks_per_second() * 5);
 #if BLE_DIAG
         printf("advertising... t=%ds bt_isr_count=%u\n", (i + 1) * 5,
