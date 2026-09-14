@@ -25,6 +25,10 @@
  */
 
 #include <rtems.h>
+#ifndef BLE_SCAN_MODE
+#define BLE_SCAN_MODE 0
+#endif
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -51,8 +55,18 @@ static void notify_host_send_available(void)
      * send-buffer availability. */
 }
 
+static volatile uint32_t s_adv_reports;
+static volatile uint32_t s_events_total;
+
 static int notify_host_recv(uint8_t *data, uint16_t len)
 {
+    s_events_total++;
+    /* HCI Event (0x04), LE Meta Event (0x3e), subevent LE Advertising
+     * Report (0x02) - i.e. the radio really received a packet. */
+    if (len >= 4 && data[0] == 0x04 && data[1] == 0x3e && data[3] == 0x02) {
+        s_adv_reports++;
+        return 0;   /* do not disturb the command/response handshake */
+    }
     if (len > sizeof(s_response)) {
         len = sizeof(s_response);
     }
@@ -104,6 +118,22 @@ static const uint8_t hci_le_set_adv_data[] = {
 /* 7.8.9 LE Set Advertising Enable: 1 = enable. */
 static const uint8_t hci_le_set_adv_enable[] = { 0x01, 0x0a, 0x20, 0x01, 0x01 };
 
+/* Scan-mode probe (BLE_SCAN_MODE=1). Advertising is transmit-only, so when
+ * a scanner sees nothing there is no way to tell "the radio is dead" from
+ * "TX specifically is broken". Putting the controller into active scanning
+ * instead makes the radio a receiver: if LE Advertising Report events start
+ * arriving from the BLE devices that are demonstrably in range, the RF path
+ * works and the fault is TX-side. If none arrive, the radio is not working
+ * at all on this port.
+ * 7.8.10 LE Set Scan Parameters: active, 60 ms interval, 30 ms window,
+ * public own address, accept all. 7.8.11 LE Set Scan Enable: on, no
+ * duplicate filtering so every report comes through. */
+static const uint8_t hci_le_set_scan_params[] = {
+    0x01, 0x0b, 0x20, 0x07,
+    0x01, 0x60, 0x00, 0x30, 0x00, 0x00, 0x00
+};
+static const uint8_t hci_le_set_scan_enable[] = { 0x01, 0x0c, 0x20, 0x02, 0x01, 0x00 };
+
 /* Send one HCI command and wait for its Command Complete. Returns true only
  * on a Command Complete carrying status 0x00. */
 static bool hci_cmd(const char *name, const uint8_t *cmd, uint16_t len)
@@ -141,6 +171,7 @@ rtems_task Init(rtems_task_argument ignored)
 
     printf("\nBLE controller-only example: HCI + LE advertising\n");
 
+    ble_diag_cycle_counter_enable();
     ble_diag_dump_intr_matrix("boot");
 
     /* Real ESP-IDF's 2nd-stage bootloader (bootloader_init(), real
@@ -310,7 +341,23 @@ rtems_task Init(rtems_task_argument ignored)
         exit(1);
     }
 
+#if BLE_SCAN_MODE
+    if (!hci_cmd("LE Set Scan Parameters", hci_le_set_scan_params,
+                 sizeof(hci_le_set_scan_params))
+        || !hci_cmd("LE Set Scan Enable", hci_le_set_scan_enable,
+                    sizeof(hci_le_set_scan_enable))) {
+        printf("FAIL: could not enter scan mode\n");
+        exit(1);
+    }
+    printf("SCANNING: listening for other BLE devices\n");
+#else
     printf("PASS: BLE controller advertising as \"RTEMS\" - scan for it\n");
+#endif
+
+    /* From here on the blob's own BLE_ERR logging goes to a counter rather
+     * than the UART - see ble_diag.h. If the deadline misses are caused (or
+     * sustained) by the cost of printing them, the rate must drop now. */
+    ble_diag_rom_console_mute();
 
     /* Let the radio run so the advertisements are actually observable. With
      * diagnostics on, also report the BT ISR count - it stays at 0 through
@@ -320,8 +367,16 @@ rtems_task Init(rtems_task_argument ignored)
     for (int i = 0; i < 60; i++) {
         rtems_task_wake_after(rtems_clock_get_ticks_per_second() * 5);
 #if BLE_DIAG
-        printf("advertising... t=%ds bt_isr_count=%u\n", (i + 1) * 5,
-               (unsigned) ble_diag_bt_isr_count());
+        printf("adv t=%ds isr=%u mean_us=%u max_us=%u slow=%u "
+               "rom_lines=%u in_isr=%u\n",
+               (i + 1) * 5, (unsigned) ble_diag_bt_isr_count(),
+               (unsigned) ble_diag_bt_isr_mean_us(),
+               (unsigned) (ble_diag_bt_isr_max_cycles() / 160u),
+               (unsigned) ble_diag_bt_isr_slow_count(),
+               (unsigned) ble_diag_rom_lines(),
+               (unsigned) ble_diag_rom_lines_in_isr());
+        printf("    rx: adv_reports=%u events_total=%u\n",
+               (unsigned) s_adv_reports, (unsigned) s_events_total);
 #else
         printf("advertising... t=%ds\n", (i + 1) * 5);
 #endif

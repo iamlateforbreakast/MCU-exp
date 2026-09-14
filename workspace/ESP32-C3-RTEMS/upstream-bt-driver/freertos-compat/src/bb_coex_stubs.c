@@ -51,21 +51,24 @@
  *     rather than reason about further from source alone - see
  *     ../../examples/ble_vhci_smoke/init.c's own status header.
  *
- * If this smoke test fails on real hardware in a way traceable to RF
- * baseband init, these three are the first place to look.
+ * RESOLVED 2026-09-14 - and that closing warning was right. All three live
+ * in `libbtbb.a`, a FOURTH closed blob
+ * (components/esp_phy/lib/esp32c3/libbtbb.a) that this port simply was not
+ * linking. The 2026-08-26 search above was thorough but looked only in
+ * libbtdm_app.a, libphy.a, libcoexist.a and the ROM linker scripts - nobody
+ * knew libbtbb.a existed. It ships in the same esp-phy-lib repo as libphy.a,
+ * which the example Makefile was already cloning and copying one file out of.
+ *
+ * The cost of the no-op stubs was total: bt_bb_v2_init_cmplx() is the BT
+ * baseband bring-up, so the radio never keyed. Measured on hardware - the
+ * controller answered every HCI command with status 0x00, the scheduler ran,
+ * interrupts fired continuously, and yet a host BLE scanner never saw the
+ * board advertise, and putting the controller into scan mode received ZERO
+ * advertising reports while surrounded by devices the host adapter could see.
+ * A dead radio in both directions with a fully working protocol stack.
+ *
+ * The three stubs are gone; libbtbb.a now provides them.
  */
-
-void coex_pti_v2(void)
-{
-}
-
-void bt_bb_v2_init_cmplx(void)
-{
-}
-
-void bt_bb_tx_cca_set(void)
-{
-}
 
 /*
  * Added 2026-08-26 after re-vendoring bt.c from real ESP-IDF commit

@@ -474,67 +474,57 @@ To monitor the console (UART0/USB-Serial-JTAG) afterward, open
 /dev/ttyACM0 115200`, `python3 -m serial.tools.miniterm /dev/ttyACM0
 115200`, or `esptool.py --chip esp32c3 -p /dev/ttyACM0 monitor`).
 
-### PARTIAL (2026-09-14): HCI layer works, advertising does NOT reach the air
+### WORKING (2026-09-14): BLE advertising confirmed over the air
 
-`examples/ble_vhci_smoke` runs Read Local Version -> LE Read Buffer Size ->
-LE Set Advertising Parameters -> LE Set Advertising Data -> LE Set Advertising
-Enable, **all five returning HCI status `0x00`**. Read Local Version answers
-`04 0e 0c 05 01 10 00 09 16 00 09 e5 02 16 00` - HCI and LMP version 9
-(Bluetooth 5.0), manufacturer `0x02e5` (Espressif). So the controller really is
-alive and servicing commands.
+`examples/ble_vhci_smoke` advertises as "RTEMS" and is **seen by a real BLE
+scanner**. Verified from a cleared cache on the build host
+(`rfkill unblock bluetooth`, `bluetoothctl scan le`):
+`[NEW] Device 9C:CC:01:7C:34:F1 RTEMS`. Confirmed with the default build -
+diagnostics off, and `CONFIG_BT_CTRL_BLE_SCAN 0` matching real IDF.
 
-**But it does not actually transmit.** Verified against a BLE scanner on the
-host (`rfkill unblock bluetooth`, then `bluetoothctl scan le`), the board is
-invisible when running this port, while the real-IDF control app in
-`../ESP32-C3/ble_controller_probe/` - same board, same blob, byte-identical HCI
-sequence, also skipping HCI Reset - shows up immediately as
-`Device 9C:CC:01:7C:34:F2 RTEMS`. Do not read "status 0x00" as "working radio";
-that mistake was made once already in this file's history.
+The sequence is Read Local Version -> LE Read Buffer Size -> LE Set
+Advertising Parameters -> LE Set Advertising Data -> LE Set Advertising
+Enable, all returning HCI status `0x00`, advertising ADV_IND at 100 ms.
 
-Skipping HCI Reset is nevertheless legitimate, and this is now tested rather
-than assumed: the IDF control app advertises perfectly well without it, so the
-Reset crash below is not what blocks advertising.
+**Root cause of the previously dead radio: a missing fourth blob.** The port
+linked `libbtdm_app.a`, `libphy.a` and `libcoexist.a`, but not `libbtbb.a` -
+the BT *baseband* library. Three symbols it provides
+(`bt_bb_v2_init_cmplx`, `bt_bb_tx_cca_set`, `coex_pti_v2`) were no-op stubs
+in `freertos-compat/src/bb_coex_stubs.c`, and `bt_bb_v2_init_cmplx()` is the
+baseband bring-up call - so the radio never keyed. An earlier session had
+searched the three linked blobs and every ROM linker script for those
+symbols and concluded they were unresolvable; `libbtbb.a` was simply not
+known to exist. It ships in the same `esp-phy-lib` repo as `libphy.a`, which
+the example Makefile was already cloning and copying one file out of.
 
-**The long-standing illegal-instruction crash is specific to HCI Reset, and
-only to it.** `hci_reset_cmd_handler` re-invokes `btdm_controller_on_reset ->
-r_rwip_reset -> r_lld_init -> r_lld_core_init`, and the trap is a `ret` to a
-garbage return address inside `r_lld_core_init` - not, as three earlier
-sessions assumed, a call through a corrupted function-pointer table. The
-giveaway was in every register dump all along: `ra == mepc | 1`, which is
-exactly what `ret` (`jalr x0, 0(ra)`, target `ra & ~1`) produces while leaving
-`ra` untouched; an indirect call would have left `ra` holding a valid
-`0x42xxxxxx` address. That is why roughly twenty hardware breakpoints across
-the "obvious" call chain all missed - there is no fixed call site to
-breakpoint. A freshly enabled controller does not require HCI Reset, so the
-example simply does not send it; this is a real fix, not a workaround.
+**What made this findable** was refusing to trust controller-side success.
+Every HCI command returned `0x00`, the scheduler ran, and interrupts fired
+continuously, yet nothing was on the air. The decisive test was putting the
+controller into *scan* mode (`make BLE_SCAN_MODE=1`): advertising is
+transmit-only, so a silent scanner cannot separate "radio dead" from "TX
+broken", whereas counting inbound LE Advertising Reports can. It received
+**zero** reports while surrounded by devices the host adapter saw easily -
+a dead radio in both directions, with a fully working protocol stack. That
+redirected the search from timing to RF, and straight to the stubs.
 
-Ruled out with live data, not argument: all four blob dispatch tables dumped
-whole and every entry resolved against `nm` (intact); `rwip_param` read live
-(properly initialised); the BT ISR never fires before the crash (`in_isr 0`,
-count 0); btCo stack usage 1448 of 4080 bytes; and the interrupt stack is
-4096 B versus real IDF's working `CONFIG_FREERTOS_ISR_STACKSIZE=1536`.
+**Also fixed on the way, and independently real**: BLE time-critical code
+was executing from XIP flash rather than IRAM - see
+`upstream-bt-driver/linker-section-patch/README.md`. The BT ISR ran at
+1314 us mean against a ~940 us scheduler budget, so nearly every advertising
+event missed its deadline and the radio wedged after 10-40 s. Now ~350 us
+mean, roughly 40x fewer deadline misses, no wedging.
 
-`bsp-patch/`'s `RWBLE_INTR = 8 -> cpu_int 7` entry - flagged in its own README
-since 2026-08-25 as "a reasoned best guess, not a confirmed fact" - is now
-**confirmed at runtime**: the ISR count climbs from 0 to ~1500 as soon as the
-radio transmits, with `sp_in == sp_out` on the interrupt stack (648/4080 used).
+**Still open**: `r_sch_prog_ble_push_hack` still reports occasional BLE_ERR
+deadline misses (about one per second versus ten before, and zero under real
+IDF). Advertising works regardless, but the remaining gap is worth closing -
+IDF keeps ~70 KB in `.iram0.text` against our ~25 KB, so more of the hot
+path could still move. `esp_intr_alloc` also still discards `flags`, so the
+`ESP_INTR_FLAG_LEVEL3` IDF requests is dropped and every CPU interrupt sits
+at the same priority.
 
-**The blocker.** The blob emits `BLE_ERR_<target>_<0>_<now>_<n>` from
-`r_sch_prog_ble_push_hack` (its `blez a5` programming-margin check) on
-essentially *every* advertising event - target slot 705 versus now 706, i.e. the
-software reaches the radio-programming step after the event time has already
-passed - and the radio then wedges after roughly 7-40 s. The identical sequence
-under real IDF produces **zero** of these. Since `rwip_prog_delay` is 3
-half-slots (~940 us), anything adding about a millisecond of latency between the
-radio interrupt and the blob programming the next event breaks every event, and
-that is the thing to measure next (timestamp the BT ISR with the 16 MHz systimer
-and compare against the ~940 us budget).
-
-Prime untested suspect: this port's `esp_intr_alloc` shim discards `flags`
-entirely, so the `ESP_INTR_FLAG_LEVEL3` that IDF requests is dropped, and
-`bsp_interrupt_facility_initialize()` gives every CPU interrupt the same
-priority - the BLE ISR cannot preempt anything, including the RTEMS tick and a
-polled 115200-baud console whose own `BLE_ERR` output costs ~2 ms per line.
+**HCI Reset remains broken** and the example still does not send it - see
+below. That is now known to be independent of advertising: real IDF
+advertises fine without Reset too.
 
 **Diagnostics.** The serial instruments that cracked this live in
 `examples/ble_vhci_smoke/ble_diag.{c,h}` and are off by default; build with
