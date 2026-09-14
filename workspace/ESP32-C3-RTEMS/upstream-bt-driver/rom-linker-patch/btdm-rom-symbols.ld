@@ -1140,6 +1140,14 @@ PROVIDE ( rwble_env = 0x3fcdfc2c );
 PROVIDE ( rwip_coex_cfg = 0x3ff1eeac );
 PROVIDE ( rwip_env = 0x3fcdfc10 );
 PROVIDE ( rwip_param = 0x3fcdfc04 );
+
+/* ROM console hook (addresses from real IDF's
+ * components/esp_rom/esp32c3/ld/esp32c3.rom.ld). The closed blob logs via
+ * esp_rom_printf, which writes straight to UART0 and costs roughly 2 ms per
+ * line at 115200 - enough to blow the BLE scheduler's ~940 us programming
+ * budget on its own. Redirecting putc1 lets that output be counted instead
+ * of transmitted. */
+PROVIDE ( ets_install_putc1 = 0x40000044 );
 PROVIDE ( rwip_priority = 0x3ff1ee94 );
 PROVIDE ( rwip_prog_delay = 0x3fcdfc00 );
 PROVIDE ( rwip_rf = 0x3fcdfbc8 );

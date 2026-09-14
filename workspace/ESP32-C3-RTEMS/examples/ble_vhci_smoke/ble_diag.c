@@ -208,4 +208,67 @@ uint32_t ble_diag_bt_isr_count(void)
     return diag_bt_isr_count;
 }
 
+extern volatile uint32_t diag_bt_isr_max_cycles;
+
+uint32_t ble_diag_bt_isr_max_cycles(void)
+{
+    return diag_bt_isr_max_cycles;
+}
+
+extern void diag_cycle_counter_enable(void);
+
+void ble_diag_cycle_counter_enable(void)
+{
+    diag_cycle_counter_enable();
+}
+
+/* ROM console redirect. ets_install_putc1 is PROVIDEd at its real ROM
+ * address by ../../upstream-bt-driver/rom-linker-patch/btdm-rom-symbols.ld. */
+extern void ets_install_putc1(void (*p)(char c));
+
+static volatile uint32_t diag_rom_line_count;
+static volatile uint32_t diag_rom_lines_in_isr;
+
+/* The blob's BLE_ERR deadline-miss message comes through here, so this sink
+ * is also a free probe of WHICH CONTEXT the failing scheduler-programming
+ * path runs in - ISR or task. That decides where to look next. */
+static void diag_rom_putc_sink(char c)
+{
+    if (c == '\n') {
+        diag_rom_line_count++;
+        if (rtems_interrupt_is_in_progress()) {
+            diag_rom_lines_in_isr++;
+        }
+    }
+}
+
+uint32_t ble_diag_rom_lines_in_isr(void)
+{
+    return diag_rom_lines_in_isr;
+}
+
+extern volatile uint32_t diag_bt_isr_total_cycles;
+extern volatile uint32_t diag_bt_isr_slow_count;
+
+uint32_t ble_diag_bt_isr_mean_us(void)
+{
+    uint32_t n = diag_bt_isr_count;
+    return n ? (diag_bt_isr_total_cycles / n) / 160u : 0u;
+}
+
+uint32_t ble_diag_bt_isr_slow_count(void)
+{
+    return diag_bt_isr_slow_count;
+}
+
+void ble_diag_rom_console_mute(void)
+{
+    ets_install_putc1(diag_rom_putc_sink);
+}
+
+uint32_t ble_diag_rom_lines(void)
+{
+    return diag_rom_line_count;
+}
+
 #endif /* BLE_DIAG */

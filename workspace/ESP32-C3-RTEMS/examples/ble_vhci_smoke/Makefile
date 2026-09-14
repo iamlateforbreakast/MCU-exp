@@ -68,9 +68,16 @@ PKG_ABI    := $(shell $(PKG_CONFIG) --variable=ABI_FLAGS $(BSP_PC) | sed 's/-mar
 # only exist when esp_intr_alloc.c is built with its instrumentation.
 BLE_DIAG ?= 0
 
+# Diagnostic build variant: instead of advertising, put the controller into
+# active scanning so the radio acts as a receiver. Advertising is
+# transmit-only, so a silent scanner cannot distinguish "radio dead" from "TX
+# broken"; incoming LE Advertising Reports settle it. `make BLE_SCAN_MODE=1`.
+BLE_SCAN_MODE ?= 0
+
 CFLAGS  := -Wall -Wextra -O2 -g -fdata-sections -ffunction-sections \
            -march=rv32imc_zicsr $(PKG_CFLAGS) $(INCLUDES) \
-           -DBLE_DIAG=$(BLE_DIAG) -DDIAG_INTR_ALLOC=$(BLE_DIAG)
+           -DBLE_DIAG=$(BLE_DIAG) -DDIAG_INTR_ALLOC=$(BLE_DIAG) \
+           -DBLE_SCAN_MODE=$(BLE_SCAN_MODE)
 LDFLAGS := -march=rv32imc_zicsr $(PKG_ABI) $(shell $(PKG_CONFIG) --libs $(BSP_PC))
 
 # object-name : source-path pairs, explicit to avoid the basename
@@ -179,6 +186,12 @@ BLOB_DIR := blobs
 LIBBTDM  := $(BLOB_DIR)/libbtdm_app.a
 LIBPHY   := $(BLOB_DIR)/libphy.a
 LIBCOEX  := $(BLOB_DIR)/libcoexist.a
+# The BT BASEBAND blob. Missing until 2026-09-14, which is why the radio was
+# completely dead (no TX and no RX) even though the protocol stack, scheduler
+# and interrupts all ran: bt_bb_v2_init_cmplx() - the baseband bring-up call -
+# was a no-op stub. It ships in the same esp-phy-lib repo as libphy.a, which
+# this Makefile was already cloning and then copying only libphy.a out of.
+LIBBTBB  := $(BLOB_DIR)/libbtbb.a
 
 all: ble_vhci_smoke.exe
 
@@ -189,8 +202,8 @@ all: ble_vhci_smoke.exe
 # ~172 PROVIDE()'d ROM addresses on top of the BSP's real default script.
 ROM_SYMS := $(BT_DRIVER)/rom-linker-patch/btdm-rom-symbols.ld
 
-ble_vhci_smoke.exe: $(OBJS) $(LIBBTDM) $(LIBPHY) $(LIBCOEX) $(ROM_SYMS) linkcmds-patched.stamp
-	$(CC) $(OBJS) $(LIBBTDM) $(LIBPHY) $(LIBCOEX) $(ROM_SYMS) -o $@ $(LDFLAGS)
+ble_vhci_smoke.exe: $(OBJS) $(LIBBTDM) $(LIBPHY) $(LIBBTBB) $(LIBCOEX) $(ROM_SYMS) linkcmds-patched.stamp
+	$(CC) $(OBJS) $(LIBBTDM) $(LIBPHY) $(LIBBTBB) $(LIBCOEX) $(ROM_SYMS) -o $@ $(LDFLAGS)
 
 # Fetching the blobs (not vendored into the repo - large Apache-2.0
 # "Object form" binaries, see ../../upstream-bt-driver/vendor/README.md
@@ -238,6 +251,11 @@ $(LIBPHY):
 	git clone https://github.com/espressif/esp-phy-lib.git $(BLOB_DIR)/.esp-phy-lib
 	cd $(BLOB_DIR)/.esp-phy-lib && git checkout $(PHYLIB_COMMIT)
 	cp $(BLOB_DIR)/.esp-phy-lib/esp32c3/libphy.a $@
+
+# Depends on $(LIBPHY) purely to guarantee the esp-phy-lib clone exists -
+# both blobs come out of that one checkout at the same pinned commit.
+$(LIBBTBB): $(LIBPHY)
+	cp $(BLOB_DIR)/.esp-phy-lib/esp32c3/libbtbb.a $@
 
 $(LIBCOEX):
 	mkdir -p $(BLOB_DIR)

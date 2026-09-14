@@ -59,12 +59,38 @@ struct intr_handle_data_s {
  * ALL on this port.
  */
 volatile uint32_t diag_bt_isr_count;
+volatile uint32_t diag_bt_isr_max_cycles;   /* longest single handler run */
+volatile uint32_t diag_bt_isr_last_cycles;  /* most recent handler run */
+volatile uint32_t diag_bt_isr_total_cycles; /* sum, for a mean duration */
+volatile uint32_t diag_bt_isr_slow_count;   /* runs longer than 500 us */
 volatile uint32_t diag_bt_isr_sp_in;
 volatile uint32_t diag_bt_isr_sp_out;
 volatile uint32_t diag_bt_isr_sp_mismatch;
 
 static struct intr_handle_data_s *diag_wrapped[4];
 static unsigned diag_wrapped_count;
+
+/* ESP32-C3 has SOC_CPU_HAS_CSR_PC, so the cycle counter is the custom
+ * performance-counter CSR 0x7e2, not the standard mcycle - and it only runs
+ * once PCER/PCMR are enabled, which real IDF does at startup and this RTEMS
+ * port never has. At 160 MHz one cycle is 6.25 ns, so the BLE scheduler's
+ * ~940 us budget is ~150k cycles: plenty of resolution. */
+#define DIAG_CSR_PCER 0x7e0
+#define DIAG_CSR_PCMR 0x7e1
+#define DIAG_CSR_PCCR 0x7e2
+
+void diag_cycle_counter_enable(void)
+{
+    __asm__ volatile ("csrw %0, %1" :: "i" (DIAG_CSR_PCER), "r" (1));
+    __asm__ volatile ("csrw %0, %1" :: "i" (DIAG_CSR_PCMR), "r" (1));
+}
+
+static inline uint32_t diag_cycles(void)
+{
+    uint32_t v;
+    __asm__ volatile ("csrr %0, %1" : "=r" (v) : "i" (DIAG_CSR_PCCR));
+    return v;
+}
 
 static inline uint32_t diag_sp(void)
 {
@@ -78,10 +104,22 @@ static void diag_isr_trampoline(void *arg)
     struct intr_handle_data_s *h = arg;
     uint32_t before = diag_sp();
 
+    uint32_t c0 = diag_cycles();
+
     diag_bt_isr_count++;
     diag_bt_isr_sp_in = before;
 
     h->handler(h->arg);
+
+    uint32_t elapsed = diag_cycles() - c0;
+    diag_bt_isr_last_cycles = elapsed;
+    diag_bt_isr_total_cycles += elapsed;
+    if (elapsed > 500u * 160u) {
+        diag_bt_isr_slow_count++;
+    }
+    if (elapsed > diag_bt_isr_max_cycles) {
+        diag_bt_isr_max_cycles = elapsed;
+    }
 
     uint32_t after = diag_sp();
     diag_bt_isr_sp_out = after;

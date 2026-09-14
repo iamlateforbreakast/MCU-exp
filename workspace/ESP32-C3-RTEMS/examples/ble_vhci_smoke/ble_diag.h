@@ -62,6 +62,24 @@ void ble_diag_fatal_extension(
  * esp_intr_alloc.c. Zero until the radio is actually transmitting. */
 uint32_t ble_diag_bt_isr_count(void);
 
+/* Longest single run of the BT controller's ISR, in CPU cycles (160 MHz). */
+uint32_t ble_diag_bt_isr_max_cycles(void);
+
+/* Enable the ESP32-C3 cycle counter (CSR 0x7e2). Real IDF does this at
+ * startup; this RTEMS port never has, so it reads 0 until called. */
+void ble_diag_cycle_counter_enable(void);
+
+/* Redirect the ROM console (esp_rom_printf, which the closed blob logs
+ * through) into a line counter instead of UART0. At 115200 each blob log
+ * line costs roughly 2 ms of busy UART - far more than the BLE scheduler's
+ * ~940 us programming budget - so this tests directly whether the port's own
+ * logging is what makes every advertising event miss its deadline. */
+void ble_diag_rom_console_mute(void);
+uint32_t ble_diag_rom_lines(void);
+uint32_t ble_diag_rom_lines_in_isr(void);
+uint32_t ble_diag_bt_isr_mean_us(void);
+uint32_t ble_diag_bt_isr_slow_count(void);
+
 #else /* !BLE_DIAG - no-op stubs so call sites need no #ifdef */
 
 static inline void ble_diag_dump_intr_matrix(const char *tag) { (void) tag; }
@@ -72,6 +90,13 @@ static inline void ble_diag_dump_words(const char *name, uint32_t base,
     (void) name; (void) base; (void) bytes;
 }
 static inline uint32_t ble_diag_bt_isr_count(void) { return 0; }
+static inline uint32_t ble_diag_bt_isr_max_cycles(void) { return 0; }
+static inline void ble_diag_cycle_counter_enable(void) { }
+static inline void ble_diag_rom_console_mute(void) { }
+static inline uint32_t ble_diag_rom_lines(void) { return 0; }
+static inline uint32_t ble_diag_rom_lines_in_isr(void) { return 0; }
+static inline uint32_t ble_diag_bt_isr_mean_us(void) { return 0; }
+static inline uint32_t ble_diag_bt_isr_slow_count(void) { return 0; }
 
 #endif /* BLE_DIAG */
 
