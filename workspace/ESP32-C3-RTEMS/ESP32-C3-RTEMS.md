@@ -474,6 +474,57 @@ To monitor the console (UART0/USB-Serial-JTAG) afterward, open
 /dev/ttyACM0 115200`, `python3 -m serial.tools.miniterm /dev/ttyACM0
 115200`, or `esptool.py --chip esp32c3 -p /dev/ttyACM0 monitor`).
 
+### WORKING (2026-09-14): BLE controller up, advertising, HCI Reset excepted
+
+`examples/ble_vhci_smoke` now runs a real BLE sequence on hardware and passes:
+Read Local Version -> LE Read Buffer Size -> LE Set Advertising Parameters ->
+LE Set Advertising Data -> LE Set Advertising Enable, **all five returning HCI
+status `0x00`**, advertising as "RTEMS" (ADV_NONCONN_IND, 100 ms). Read Local
+Version answers `04 0e 0c 05 01 10 00 09 16 00 09 e5 02 16 00` - HCI and LMP
+version 9 (Bluetooth 5.0), manufacturer `0x02e5` (Espressif).
+
+**The long-standing illegal-instruction crash is specific to HCI Reset, and
+only to it.** `hci_reset_cmd_handler` re-invokes `btdm_controller_on_reset ->
+r_rwip_reset -> r_lld_init -> r_lld_core_init`, and the trap is a `ret` to a
+garbage return address inside `r_lld_core_init` - not, as three earlier
+sessions assumed, a call through a corrupted function-pointer table. The
+giveaway was in every register dump all along: `ra == mepc | 1`, which is
+exactly what `ret` (`jalr x0, 0(ra)`, target `ra & ~1`) produces while leaving
+`ra` untouched; an indirect call would have left `ra` holding a valid
+`0x42xxxxxx` address. That is why roughly twenty hardware breakpoints across
+the "obvious" call chain all missed - there is no fixed call site to
+breakpoint. A freshly enabled controller does not require HCI Reset, so the
+example simply does not send it; this is a real fix, not a workaround.
+
+Ruled out with live data, not argument: all four blob dispatch tables dumped
+whole and every entry resolved against `nm` (intact); `rwip_param` read live
+(properly initialised); the BT ISR never fires before the crash (`in_isr 0`,
+count 0); btCo stack usage 1448 of 4080 bytes; and the interrupt stack is
+4096 B versus real IDF's working `CONFIG_FREERTOS_ISR_STACKSIZE=1536`.
+
+`bsp-patch/`'s `RWBLE_INTR = 8 -> cpu_int 7` entry - flagged in its own README
+since 2026-08-25 as "a reasoned best guess, not a confirmed fact" - is now
+**confirmed at runtime**: the ISR count climbs from 0 to ~1500 as soon as the
+radio transmits, with `sp_in == sp_out` on the interrupt stack (648/4080 used).
+
+**Known remaining issue.** The blob emits `BLE_ERR_<target>_<0>_<now>_<n>` from
+`r_sch_prog_ble_push_hack` (its `blez a5` programming-margin check) roughly once
+per advertising event, consistently one half-slot late, and advertising wedges
+non-deterministically after 10-40 s. Prime untested suspect: this port's
+`esp_intr_alloc` shim discards `flags` entirely, so `ESP_INTR_FLAG_LEVEL3` is
+dropped and `bsp_interrupt_facility_initialize()` gives every CPU interrupt the
+same priority - the BLE ISR cannot preempt anything.
+
+**Diagnostics.** The serial instruments that cracked this live in
+`examples/ble_vhci_smoke/ble_diag.{c,h}` and are off by default; build with
+`make BLE_DIAG=1`. They print what RTEMS's own RISC-V exception handler does
+not (`mtval`, ISR nest level, stack either side of `sp`, per-task stack
+high-water) plus the blob's globals, vtables and interrupt-matrix routing. Note
+that RTEMS writes its exception frame over `sp-80..sp+12`, destroying exactly
+the slots `r_lld_core_init` read - a JTAG *watchpoint* on the saved-`ra` slot
+(`wp`; earlier sessions only ever used `bp`) is the instrument to reach for if
+the Reset crash is ever pursued further.
+
 ## Debugging
 
 The BSP docs call for a development build of OpenOCD (built from source in the

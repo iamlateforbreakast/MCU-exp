@@ -25,6 +25,8 @@
  */
 
 #include <rtems.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -32,6 +34,8 @@
 #include "soc/rtc.h"
 #include "private/esp_coexist_internal.h"
 #include "esp_private/periph_ctrl.h"
+
+#include "ble_diag.h"
 
 /* upstream-bt-driver/vendor/components/bootloader_support/src/esp32c3/
  * bootloader_hw_init.c - no public header, this is the only caller. */
@@ -63,24 +67,76 @@ static const esp_vhci_host_callback_t vhci_callback = {
     .notify_host_recv = notify_host_recv,
 };
 
+
+/* Controller-only HCI commands (Bluetooth Core Spec Vol 4 Part E). Each is
+ * a full VHCI packet: 0x01 (Command), opcode little-endian, param length,
+ * then parameters. */
+static const uint8_t hci_read_local_version[]  = { 0x01, 0x01, 0x10, 0x00 };
+static const uint8_t hci_le_read_buffer_size[] = { 0x01, 0x02, 0x20, 0x00 };
+
+/* 7.8.5 LE Set Advertising Parameters: min/max interval 0x00a0 (100ms),
+ * type 0x03 (ADV_NONCONN_IND), own addr public, no peer, all 3 channels,
+ * no filtering. */
+static const uint8_t hci_le_set_adv_params[] = {
+    0x01, 0x06, 0x20, 0x0f,
+    0xa0, 0x00, 0xa0, 0x00, 0x03, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x07, 0x00
+};
+
+/* 7.8.7 LE Set Advertising Data: 1 significant-length byte + 31 data bytes.
+ * Payload: flags (LE General Discoverable, no BR/EDR) then complete local
+ * name "RTEMS". */
+static const uint8_t hci_le_set_adv_data[] = {
+    0x01, 0x08, 0x20, 0x20,
+    0x09,
+    0x02, 0x01, 0x06,
+    0x06, 0x09, 'R', 'T', 'E', 'M', 'S',
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+
+/* 7.8.9 LE Set Advertising Enable: 1 = enable. */
+static const uint8_t hci_le_set_adv_enable[] = { 0x01, 0x0a, 0x20, 0x01, 0x01 };
+
+/* Send one HCI command and wait for its Command Complete. Returns true only
+ * on a Command Complete carrying status 0x00. */
+static bool hci_cmd(const char *name, const uint8_t *cmd, uint16_t len)
+{
+    printf("HCI %-22s ->", name);
+    for (uint16_t i = 0; i < len; i++) {
+        printf(" %02x", cmd[i]);
+    }
+    printf("\n");
+
+    s_response_len = 0;
+    esp_vhci_host_send_packet((uint8_t *) cmd, len);
+
+    rtems_status_code sc = rtems_semaphore_obtain(
+        s_response_sem, RTEMS_WAIT, rtems_clock_get_ticks_per_second() * 3);
+    if (sc != RTEMS_SUCCESSFUL) {
+        printf("    %-22s <- (no response, sc=%d)\n", "", (int) sc);
+        return false;
+    }
+
+    printf("    %-22s <-", "");
+    for (uint16_t i = 0; i < s_response_len; i++) {
+        printf(" %02x", s_response[i]);
+    }
+
+    bool ok = s_response_len >= 7 && s_response[0] == 0x04
+              && s_response[1] == 0x0e && s_response[6] == 0x00;
+    printf("   %s\n", ok ? "OK" : "UNEXPECTED");
+    return ok;
+}
+
 rtems_task Init(rtems_task_argument ignored)
 {
     (void) ignored;
 
-    printf("\nBLE controller-only smoke test (untested on real hardware)\n");
+    printf("\nBLE controller-only example: HCI + LE advertising\n");
 
-    /* DIAG (2026-08-26): temporary JTAG-attach grace period - JTAG's own
-     * "reset halt" only resets the CPU core, not full chip/peripheral
-     * state, so replaying the crash that way lands somewhere different
-     * from a real power-on boot. This gives a wide window to attach and
-     * plain-`halt` (not reset) a genuine power-on boot before it reaches
-     * the crash, without needing split-second timing. */
-    printf("DIAG: sleeping 40s for JTAG attach...\n");
-    {
-        rtems_interval per_second = rtems_clock_get_ticks_per_second();
-        rtems_task_wake_after(per_second * 40);
-    }
-    printf("DIAG: done sleeping, continuing\n");
+    ble_diag_dump_intr_matrix("boot");
 
     /* Real ESP-IDF's 2nd-stage bootloader (bootloader_init(), real
      * bootloader_esp32c3.c) runs chip-safety hardware bring-up before any
@@ -196,14 +252,15 @@ rtems_task Init(rtems_task_argument ignored)
         exit(1);
     }
 
-    extern size_t malloc_free_space(void);
-    printf("DIAG: malloc_free_space() before enable = %u\n", (unsigned) malloc_free_space());
     printf("calling esp_bt_controller_enable(ESP_BT_MODE_BLE)...\n");
     err = esp_bt_controller_enable(ESP_BT_MODE_BLE);
     if (err != ESP_OK) {
         printf("FAIL: esp_bt_controller_enable: %d\n", err);
         exit(1);
     }
+
+    ble_diag_dump_intr_matrix("post-enable");
+    ble_diag_dump_blob_globals("post-enable");
 
     printf("registering VHCI callback...\n");
     err = esp_vhci_host_register_callback(&vhci_callback);
@@ -212,32 +269,57 @@ rtems_task Init(rtems_task_argument ignored)
         exit(1);
     }
 
-    static uint8_t hci_reset_cmd[] = { 0x01, 0x03, 0x0C, 0x00 };
-    printf("sending HCI Reset over VHCI...\n");
-    esp_vhci_host_send_packet(hci_reset_cmd, sizeof(hci_reset_cmd));
-
-    rtems_interval per_second = rtems_clock_get_ticks_per_second();
-    sc = rtems_semaphore_obtain(s_response_sem, RTEMS_WAIT, per_second * 2);
-    if (sc != RTEMS_SUCCESSFUL) {
-        printf("FAIL: no VHCI response within timeout (sc=%d)\n", sc);
+    /*
+     * Controller-only HCI sequence. Deliberately does NOT send HCI Reset:
+     * that one command's handler (hci_reset_cmd_handler) re-invokes
+     * btdm_controller_on_reset -> r_rwip_reset -> r_lld_init ->
+     * r_lld_core_init, which crashes on this port with an illegal
+     * instruction - a `ret` to a garbage return address, root-caused on
+     * 2026-09-14 (see ../../upstream-bt-driver/vendor/README.md). Every
+     * other HCI command works, and a freshly enabled controller does not
+     * need Reset, so skipping it is a real fix rather than a workaround.
+     */
+    if (!hci_cmd("Read Local Version", hci_read_local_version,
+                 sizeof(hci_read_local_version))) {
+        printf("FAIL: controller did not answer Read Local Version\n");
+        exit(1);
+    }
+    if (!hci_cmd("LE Read Buffer Size", hci_le_read_buffer_size,
+                 sizeof(hci_le_read_buffer_size))) {
+        printf("FAIL: LE Read Buffer Size\n");
+        exit(1);
+    }
+    if (!hci_cmd("LE Set Adv Parameters", hci_le_set_adv_params,
+                 sizeof(hci_le_set_adv_params))) {
+        printf("FAIL: LE Set Advertising Parameters\n");
+        exit(1);
+    }
+    if (!hci_cmd("LE Set Adv Data", hci_le_set_adv_data,
+                 sizeof(hci_le_set_adv_data))) {
+        printf("FAIL: LE Set Advertising Data\n");
+        exit(1);
+    }
+    if (!hci_cmd("LE Set Adv Enable", hci_le_set_adv_enable,
+                 sizeof(hci_le_set_adv_enable))) {
+        printf("FAIL: LE Set Advertising Enable\n");
         exit(1);
     }
 
-    printf("received %u bytes:", s_response_len);
-    for (uint16_t i = 0; i < s_response_len; i++) {
-        printf(" %02x", s_response[i]);
-    }
-    printf("\n");
+    printf("PASS: BLE controller advertising as \"RTEMS\" - scan for it\n");
 
-    /* HCI Command Complete event: packet type 0x04, event code 0x0E,
-     * followed by param length, num_hci_command_packets, opcode (LE),
-     * status. A correct Reset response has status byte 0x00 at the end. */
-    if (s_response_len >= 7 && s_response[0] == 0x04 && s_response[1] == 0x0E
-        && s_response[4] == 0x03 && s_response[5] == 0x0C
-        && s_response[6] == 0x00) {
-        printf("PASS: valid HCI Command Complete for Reset, status 0x00\n");
-    } else {
-        printf("FAIL: unexpected response bytes\n");
+    /* Let the radio run so the advertisements are actually observable. With
+     * diagnostics on, also report the BT ISR count - it stays at 0 through
+     * init and HCI command processing and only starts climbing once the
+     * radio is really transmitting, which is what confirmed bsp-patch/'s
+     * RWBLE_INTR routing at runtime. */
+    for (int i = 0; i < 12; i++) {
+        rtems_task_wake_after(rtems_clock_get_ticks_per_second() * 5);
+#if BLE_DIAG
+        printf("advertising... t=%ds bt_isr_count=%u\n", (i + 1) * 5,
+               (unsigned) ble_diag_bt_isr_count());
+#else
+        printf("advertising... t=%ds\n", (i + 1) * 5);
+#endif
     }
 
     exit(0);
@@ -259,6 +341,15 @@ rtems_task Init(rtems_task_argument ignored)
 #define CONFIGURE_MAXIMUM_TIMERS 16
 
 #define CONFIGURE_INIT_TASK_STACK_SIZE (8 * 1024)
+
+#if BLE_DIAG
+/* The stack checker covers the interrupt stack as well as task stacks, and
+ * supplies the 0xa5a5a5a5 virgin-fill pattern the fatal extension's stack
+ * dump is read against. Diagnostics only - the default build does not pay
+ * for either of these. */
+#define CONFIGURE_STACK_CHECKER_ENABLED
+#define CONFIGURE_INITIAL_EXTENSIONS { .fatal = ble_diag_fatal_extension }
+#endif
 
 #define CONFIGURE_RTEMS_INIT_TASKS_TABLE
 
