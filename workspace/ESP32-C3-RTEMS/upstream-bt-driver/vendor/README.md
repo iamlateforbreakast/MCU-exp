@@ -289,6 +289,31 @@ these 14 with (a different `.ld` fragment not yet checked, symbols compiled
 directly into IDF's own bt component objects, or something else) isn't
 identified yet - flagged as open, not guessed at.
 
+**FOURTH BLOB, added 2026-09-14: `libbtbb.a` - and its absence is why the
+radio was dead.** The port linked `libbtdm_app.a`, `libphy.a` and
+`libcoexist.a`; the BT *baseband* library was missing entirely. It ships in
+the **same `esp-phy-lib` repo as `libphy.a`** (`esp32c3/libbtbb.a`, at the
+same `PHYLIB_COMMIT` pin `06e7625de197...`), which the example Makefile was
+already cloning and then copying exactly one file out of - so the fix was two
+Makefile lines, not a new fetch.
+
+It provides `bt_bb_v2_init_cmplx`, `bt_bb_tx_cca_set` and `coex_pti_v2`,
+which had been no-op stubs in `../freertos-compat/src/bb_coex_stubs.c` since
+2026-08-26. `bt_bb_v2_init_cmplx()` is the baseband bring-up call, so with it
+stubbed the radio never keyed: every HCI command returned status `0x00`, the
+scheduler ran, interrupts fired continuously, and nothing was transmitted or
+received. The 2026-08-26 investigation that declared those three symbols
+unresolvable really was exhaustive across the three blobs it knew about and
+every ROM `.ld` variant at the correct pinned commits - it simply did not
+know a fourth blob existed. Worth generalising: when a symbol is missing from
+every artifact you are searching, question the *inventory* before concluding
+the symbol is unobtainable.
+
+`libbtbb.a` also defines the wider RF control surface (`bt_bb_v2_rx_set`,
+`bt_bb_v2_tx_set`, `bt_set_chn`, `bt_get_channel_pwr`, `bt_bb_gain_set`, ...).
+Two symbols are still NOT in it and remain stubbed: `bt_bb_set_rx_sense` and
+`bt_bb_set_max_gain`, both on the DTM test-mode path.
+
 **Extended again, 2026-08-26, after vendoring all of `esp_phy`** (see status
 header): the closed PHY calibration/RF-tuning library, `esp-phy-lib`'s
 `libphy.a` for esp32c3, was fetched (same "don't commit large binaries"
