@@ -61,14 +61,22 @@ INCLUDES := \
 # emit plain -march=rv32imc, so it's stripped and re-added.
 PKG_CFLAGS := $(shell $(PKG_CONFIG) --cflags $(BSP_PC) | sed 's/-march=[^ ]*//')
 PKG_ABI    := $(shell $(PKG_CONFIG) --variable=ABI_FLAGS $(BSP_PC) | sed 's/-march=[^ ]*//')
+# Serial diagnostics for the BLE controller (ble_diag.c, plus the BT-ISR
+# counters in $(FRTC)/src/esp_intr_alloc.c). Off by default so the example
+# builds clean and quiet; `make BLE_DIAG=1` turns the whole set on. Both
+# macros move together - ble_diag.c's ISR-count accessor reads counters that
+# only exist when esp_intr_alloc.c is built with its instrumentation.
+BLE_DIAG ?= 0
+
 CFLAGS  := -Wall -Wextra -O2 -g -fdata-sections -ffunction-sections \
-           -march=rv32imc_zicsr $(PKG_CFLAGS) $(INCLUDES)
+           -march=rv32imc_zicsr $(PKG_CFLAGS) $(INCLUDES) \
+           -DBLE_DIAG=$(BLE_DIAG) -DDIAG_INTR_ALLOC=$(BLE_DIAG)
 LDFLAGS := -march=rv32imc_zicsr $(PKG_ABI) $(shell $(PKG_CONFIG) --libs $(BSP_PC))
 
 # object-name : source-path pairs, explicit to avoid the basename
 # collisions described above.
 OBJS := \
-  init.o \
+  init.o ble_diag.o \
   critical.o esp_intr_alloc.o esp_sleep.o esp_timer.o gpio_stub.o \
   heap_caps.o lock.o nvs_stub.o queue.o semphr.o task.o \
   bt.o \
@@ -81,7 +89,9 @@ OBJS := \
   efuse_hal_generic.o efuse_hal_c3.o \
   bb_coex_stubs.o esp_coex_adapter.o coexist_lib_printf.o ets_timer_legacy.o
 
-init.o: init.c
+init.o: init.c ble_diag.h
+	$(CC) $(CFLAGS) -c $< -o $@
+ble_diag.o: ble_diag.c ble_diag.h
 	$(CC) $(CFLAGS) -c $< -o $@
 critical.o: $(FRTC)/src/critical.c
 	$(CC) $(CFLAGS) -c $< -o $@

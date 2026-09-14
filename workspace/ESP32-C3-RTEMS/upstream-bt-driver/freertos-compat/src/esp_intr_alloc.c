@@ -18,13 +18,78 @@
  */
 #include "esp_intr_alloc.h"
 #include <rtems/rtems/intr.h>
+#include <rtems/bspIo.h>
 #include <stdlib.h>
+
+/*
+ * DIAG (2026-09-14): which interrupt-matrix sources the closed blob
+ * actually requests has never been observed at runtime - bsp-patch/'s
+ * RWBLE_INTR=8 -> cpu_int=7 mapping is documented in its own README as "a
+ * reasoned best guess, not a confirmed fact", and an earlier session's JTAG
+ * breakpoint on this function never fired (inconclusive: that round also
+ * had multi-breakpoint-arming problems). This matters because
+ * rtems_interrupt_handler_install() accepts ANY nonzero vector, so a source
+ * that is missing from irq_c3.c's irq_mappings[] installs successfully,
+ * gets int_periph_to_cpu() == 0, and is then routed to CPU interrupt 0 -
+ * never delivered, with no error anywhere. printk (not printf) because this
+ * can be called from the BT task with interrupts in an unknown state.
+ */
+#ifndef DIAG_INTR_ALLOC
+#define DIAG_INTR_ALLOC 0
+#endif
 
 struct intr_handle_data_s {
     rtems_vector_number vector;
     rtems_interrupt_handler handler;
     void *arg;
 };
+
+#if DIAG_INTR_ALLOC
+/*
+ * DIAG (2026-09-14): the crash this port is chasing restores `s2` from a
+ * stack slot that still holds RTEMS's stack-checker virgin fill pattern
+ * (0xa5a5a5a5) while `ra` comes back as stale garbage - the signature of an
+ * epilogue reading from a DIFFERENT sp than its prologue wrote to. The
+ * obvious thing that can shift sp under a running task is interrupt
+ * entry/exit, and this port's interrupt path (a hand-written BSP
+ * irq_mappings[] entry plus this shim) is exactly the part that differs
+ * from real ESP-IDF. So wrap the blob's handler: record sp on entry and on
+ * exit, count invocations, and latch the first mismatch. This also answers
+ * a question nothing has answered yet - whether the BT interrupt fires at
+ * ALL on this port.
+ */
+volatile uint32_t diag_bt_isr_count;
+volatile uint32_t diag_bt_isr_sp_in;
+volatile uint32_t diag_bt_isr_sp_out;
+volatile uint32_t diag_bt_isr_sp_mismatch;
+
+static struct intr_handle_data_s *diag_wrapped[4];
+static unsigned diag_wrapped_count;
+
+static inline uint32_t diag_sp(void)
+{
+    uint32_t v;
+    __asm__ volatile ("mv %0, sp" : "=r" (v));
+    return v;
+}
+
+static void diag_isr_trampoline(void *arg)
+{
+    struct intr_handle_data_s *h = arg;
+    uint32_t before = diag_sp();
+
+    diag_bt_isr_count++;
+    diag_bt_isr_sp_in = before;
+
+    h->handler(h->arg);
+
+    uint32_t after = diag_sp();
+    diag_bt_isr_sp_out = after;
+    if (after != before && diag_bt_isr_sp_mismatch == 0u) {
+        diag_bt_isr_sp_mismatch = before;
+    }
+}
+#endif
 
 esp_err_t esp_intr_alloc(int source, int flags, intr_handler_t handler, void *arg, intr_handle_t *ret_handle)
 {
@@ -38,9 +103,25 @@ esp_err_t esp_intr_alloc(int source, int flags, intr_handler_t handler, void *ar
     h->handler = (rtems_interrupt_handler) handler;
     h->arg     = arg;
 
+#if DIAG_INTR_ALLOC
+    /* Install the trampoline instead, with the real handler carried in `h`. */
+    rtems_status_code sc = RTEMS_TOO_MANY;
+    if (diag_wrapped_count < sizeof(diag_wrapped) / sizeof(diag_wrapped[0])) {
+        diag_wrapped[diag_wrapped_count++] = h;
+        sc = rtems_interrupt_handler_install(
+            h->vector, "BT", RTEMS_INTERRUPT_UNIQUE, diag_isr_trampoline, h
+        );
+    }
+#else
     rtems_status_code sc = rtems_interrupt_handler_install(
         h->vector, "BT", RTEMS_INTERRUPT_UNIQUE, h->handler, h->arg
     );
+#endif
+#if DIAG_INTR_ALLOC
+    printk("DIAG intr_alloc: source=%d flags=0x%x handler=0x%08x arg=0x%08x -> sc=%d\n",
+           source, flags, (unsigned) (uintptr_t) handler, (unsigned) (uintptr_t) arg,
+           (int) sc);
+#endif
     if (sc != RTEMS_SUCCESSFUL) {
         free(h);
         return ESP_FAIL;
@@ -57,7 +138,11 @@ esp_err_t esp_intr_free(intr_handle_t handle)
     if (handle == NULL) {
         return ESP_FAIL;
     }
+#if DIAG_INTR_ALLOC
+    rtems_status_code sc = rtems_interrupt_handler_remove(handle->vector, diag_isr_trampoline, handle);
+#else
     rtems_status_code sc = rtems_interrupt_handler_remove(handle->vector, handle->handler, handle->arg);
+#endif
     free(handle);
     return (sc == RTEMS_SUCCESSFUL) ? ESP_OK : ESP_FAIL;
 }
@@ -68,6 +153,9 @@ esp_err_t esp_intr_enable(intr_handle_t handle)
         return ESP_FAIL;
     }
     rtems_status_code sc = rtems_interrupt_vector_enable(handle->vector);
+#if DIAG_INTR_ALLOC
+    printk("DIAG intr_enable: vector=%d -> sc=%d\n", (int) handle->vector, (int) sc);
+#endif
     return (sc == RTEMS_SUCCESSFUL) ? ESP_OK : ESP_FAIL;
 }
 
