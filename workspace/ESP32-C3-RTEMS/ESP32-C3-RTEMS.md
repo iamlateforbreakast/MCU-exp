@@ -514,6 +514,17 @@ was executing from XIP flash rather than IRAM - see
 event missed its deadline and the radio wedged after 10-40 s. Now ~350 us
 mean, roughly 40x fewer deadline misses, no wedging.
 
+**Reproducibility caveat, important.** The IRAM fix lives in the *installed*
+BSP linker scripts, not in a checked-in source file:
+`$RTEMS_ROOT/riscv-rtems7/esp32c3db/lib/linkcmds.base` **and** `linkcmds`.
+`upstream-bt-driver/linker-section-patch/apply-patch.py` generates both and
+the example Makefile applies both, but neither survives a BSP rebuild
+(`waf install` overwrites them) - re-run the patch, or just rebuild the
+example, which does it. Patching only `linkcmds.base` is the trap: it builds
+and boots perfectly while leaving the BLE hot path on XIP flash, with no
+error of any kind. Verified 2026-09-14 that the script applied to pristine
+generated scripts reproduces the hardware-validated configuration.
+
 **Still open**: `r_sch_prog_ble_push_hack` still reports occasional BLE_ERR
 deadline misses (about one per second versus ten before, and zero under real
 IDF). Advertising works regardless, but the remaining gap is worth closing -

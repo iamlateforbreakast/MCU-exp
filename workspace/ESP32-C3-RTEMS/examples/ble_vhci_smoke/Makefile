@@ -267,9 +267,17 @@ $(LIBCOEX):
 # installed BSP's linkcmds.base - see that directory's README.md for why
 # this is a post-build patch, not a source-file diff, and why it's
 # idempotent (safe to re-run this target on every build).
+# BOTH files must be patched. linkcmds.base gets the section placement
+# (.iram1 -> .bsp_fast_text, the BT bracketing symbols); linkcmds gets the
+# memory regions (carving IRAM out of RAM and pointing REGION_FAST_TEXT at
+# it). Patching only linkcmds.base silently leaves .fast_text aliased to
+# flash, which builds and runs but puts the BLE hot path back on XIP flash -
+# no error, just a radio that misses nearly every scheduler deadline.
 linkcmds-patched.stamp:
 	python3 $(BT_DRIVER)/linker-section-patch/apply-patch.py \
 	  $(RTEMS_ROOT)/riscv-rtems7/esp32c3db/lib/linkcmds.base
+	python3 $(BT_DRIVER)/linker-section-patch/apply-patch.py \
+	  $(RTEMS_ROOT)/riscv-rtems7/esp32c3db/lib/linkcmds
 	touch $@
 
 clean:

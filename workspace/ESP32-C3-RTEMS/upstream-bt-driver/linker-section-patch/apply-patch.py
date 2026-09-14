@@ -32,9 +32,34 @@ def patch(content):
     fast_anchor = "    *(.bsp_fast_text)\n"
     if fast_anchor not in content:
         sys.exit("ERROR: .bsp_fast_text anchor not found - linkcmds.base format may have changed, see README.md")
+    fast_insert = (
+        "    *(.iram1 .iram1.*)\n"
+        "    *(.coexiram .coexiram.*)\n"
+        "    /* Platform hot path, mirroring what real IDF keeps in .iram0.text\n"
+        "     * (~70 KB there versus ~24 KB of blob .iram1 alone). Every BT\n"
+        "     * interrupt goes through RTEMS dispatch, and running that from XIP\n"
+        "     * flash costs the BLE scheduler its ~940 us programming budget.\n"
+        "     * NOT memcpy/memset: bspstart.c populates .fast_text by calling\n"
+        "     * them, so a copy living here is absent when that runs and the\n"
+        "     * board TG0WDT boot-loops. They must stay flash-resident. */\n"
+        "    *librtemsbsp.a:irq_c3*.o(.text .text.*)\n"
+    )
+    content = content.replace(fast_anchor, fast_anchor + fast_insert, 1)
+
+    # irq_c3 must also be EXCLUDEd from the generic .text rule, which appears
+    # EARLIER in this script and would otherwise win - ld assigns each input
+    # section to the FIRST output section matching it. Two subtleties, both
+    # found the hard way: EXCLUDE_FILE applies only to the section pattern
+    # IMMEDIATELY following it, so it has to be repeated before each one; and
+    # RTEMS is built with -ffunction-sections, so its code lives in
+    # .text.<name> and an exclusion covering only `.text` silently misses it.
+    text_anchor = "    *(.text .stub .text.* .gnu.linkonce.t.*)\n"
+    if text_anchor not in content:
+        sys.exit("ERROR: .text anchor not found - linkcmds.base format may have changed, see README.md")
+    ex = "EXCLUDE_FILE(*irq_c3*.o)"
     content = content.replace(
-        fast_anchor,
-        fast_anchor + "    *(.iram1 .iram1.*)\n    *(.coexiram .coexiram.*)\n",
+        text_anchor,
+        "    *(%s .text %s .stub %s .text.* %s .gnu.linkonce.t.*)\n" % (ex, ex, ex, ex),
         1,
     )
 

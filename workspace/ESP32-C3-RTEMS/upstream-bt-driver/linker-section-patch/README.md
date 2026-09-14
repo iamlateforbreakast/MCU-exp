@@ -198,19 +198,47 @@ failed first with `.unexpected_sections` overflowing by ~30KB - applying
 just the `_bt_*` markers without this fix would not have been a complete,
 honest validation.
 
+## Two files get patched
+
+`apply-patch.py` takes the file to patch as its argument and dispatches on
+the name, because **two different installed files need editing** and missing
+the second one fails silently:
+
+| file | what it gets | if skipped |
+|---|---|---|
+| `linkcmds.base` | section placement: `.iram1`/`.coexiram` and the BSP interrupt-dispatch object into `.bsp_fast_text`, the BT bracketing symbols, `EXCLUDE_FILE` on the generic `.text` rule | `.iram1` falls into `.text` (flash) |
+| `linkcmds` | memory regions: carves the top 64 KB off `RAM`, adds the aliased `IRAM` region, re-aliases `REGION_FAST_TEXT`/`_LOAD` | **builds and runs fine, but `.fast_text` stays flash-mapped** - the BLE hot path silently goes back on XIP flash |
+
+That second failure mode is the dangerous one: no error, no warning, just a
+radio that misses nearly every scheduler deadline. The example Makefile
+therefore invokes the script on **both** files from its
+`linkcmds-patched.stamp` target. Both are idempotent (`linkcmds.base` keys
+off `_bt_data_start`, `linkcmds` off `IRAM :`), so re-running is safe.
+
+**Verified reproducible 2026-09-14**: running this script over the *pristine*
+generated scripts in `~/kernel/build/riscv/esp32c3db/` produces output
+functionally identical (331 and 24 directive lines, comments aside) to the
+hand-tuned installed copies that were validated on hardware, and a build from
+that output advertises over the air.
+
 ## Integration steps (not yet made durable across a rebuild)
 
 1. Build/install the `esp32c3db` BSP as usual (`../ESP32-C3-RTEMS.md`).
-2. Apply the three diffs above to
-   `$RTEMS_ROOT/riscv-rtems7/esp32c3db/lib/linkcmds.base` (the *installed*
-   copy - this is a post-build patch, see "Status" above for why).
+2. Run `apply-patch.py` against BOTH installed files - or just build the
+   example, whose `linkcmds-patched.stamp` target does it for you:
+   ```
+   python3 apply-patch.py $RTEMS_ROOT/riscv-rtems7/esp32c3db/lib/linkcmds.base
+   python3 apply-patch.py $RTEMS_ROOT/riscv-rtems7/esp32c3db/lib/linkcmds
+   ```
+   These are the *installed* copies - this is a post-build patch, see
+   "Status" above for why.
 3. Link the application with `bt.o`/`libbtdm_app.a` on the command line as
    shown - the object/archive names in the patch (`bt.o`, `libbtdm_app.a`)
    must match exactly what's passed to the linker, since GNU ld's
    `objname(sections)`/`archive:*(sections)` syntax matches by filename.
 
 **Not yet done**: locating the real waf/spec source that generates
-`linkcmds.base`, so this survives `waf configure && waf install` without
+`linkcmds.base`/`linkcmds`, so this survives `waf configure && waf install` without
 manual re-patching every time - the natural next step for making this
 patch as durable as `../bsp-patch/`'s (which patches real, checked-in RTEMS
 source files directly).
