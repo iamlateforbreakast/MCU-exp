@@ -51,9 +51,18 @@ typedef unsigned long UBaseType_t;
 typedef struct {
     rtems_interrupt_level level;
     unsigned int          nesting;
+    /* DIAG only (src/critical.c): cycle count when this mux masked
+     * interrupts, plus the caller that did it. Per-mux rather than global
+     * because bt.c uses several distinct muxes - one global_int_mux and
+     * several stack-local spinlocks - which can nest, so a single shared
+     * timestamp measures one mux against another and reports nonsense.
+     * Always present so every translation unit agrees on the layout
+     * regardless of how DIAG_INTR_ALLOC was set. */
+    unsigned int          diag_t0;
+    unsigned int          diag_caller;
 } portMUX_TYPE;
 
-#define portMUX_INITIALIZER_UNLOCKED { 0, 0 }
+#define portMUX_INITIALIZER_UNLOCKED { 0, 0, 0, 0 }
 
 /*
  * FreeRTOS's *FromISR calls conventionally end with

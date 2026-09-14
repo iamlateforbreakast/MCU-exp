@@ -128,11 +128,13 @@ static const uint8_t hci_le_set_adv_enable[] = { 0x01, 0x0a, 0x20, 0x01, 0x01 };
  * 7.8.10 LE Set Scan Parameters: active, 60 ms interval, 30 ms window,
  * public own address, accept all. 7.8.11 LE Set Scan Enable: on, no
  * duplicate filtering so every report comes through. */
+#if BLE_SCAN_MODE
 static const uint8_t hci_le_set_scan_params[] = {
     0x01, 0x0b, 0x20, 0x07,
     0x01, 0x60, 0x00, 0x30, 0x00, 0x00, 0x00
 };
 static const uint8_t hci_le_set_scan_enable[] = { 0x01, 0x0c, 0x20, 0x02, 0x01, 0x00 };
+#endif /* BLE_SCAN_MODE */
 
 /* Send one HCI command and wait for its Command Complete. Returns true only
  * on a Command Complete carrying status 0x00. */
@@ -358,6 +360,8 @@ rtems_task Init(rtems_task_argument ignored)
      * than the UART - see ble_diag.h. If the deadline misses are caused (or
      * sustained) by the cost of printing them, the rate must drop now. */
     ble_diag_rom_console_mute();
+    /* Measure steady-state advertising only - see ble_diag.h. */
+    ble_diag_reset_counters();
 
     /* Let the radio run so the advertisements are actually observable. With
      * diagnostics on, also report the BT ISR count - it stays at 0 through
@@ -375,8 +379,17 @@ rtems_task Init(rtems_task_argument ignored)
                (unsigned) ble_diag_bt_isr_slow_count(),
                (unsigned) ble_diag_rom_lines(),
                (unsigned) ble_diag_rom_lines_in_isr());
+#if BLE_SCAN_MODE
         printf("    rx: adv_reports=%u events_total=%u\n",
                (unsigned) s_adv_reports, (unsigned) s_events_total);
+#endif
+        printf("    crit: max_task_us=%u max_isr_us=%u n=%u worst_caller=0x%08x\n",
+               (unsigned) ble_diag_crit_max_task_us(),
+               (unsigned) ble_diag_crit_max_isr_us(),
+               (unsigned) ble_diag_crit_count(),
+               (unsigned) ble_diag_crit_max_task_caller());
+        printf("          worst_isr_caller=0x%08x\n",
+               (unsigned) ble_diag_crit_max_isr_caller());
 #else
         printf("advertising... t=%ds\n", (i + 1) * 5);
 #endif

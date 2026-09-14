@@ -261,6 +261,54 @@ uint32_t ble_diag_bt_isr_slow_count(void)
     return diag_bt_isr_slow_count;
 }
 
+extern volatile uint32_t diag_crit_max_task_cycles;
+extern volatile uint32_t diag_crit_max_isr_cycles;
+extern volatile uint32_t diag_crit_max_task_caller;
+extern volatile uint32_t diag_crit_max_isr_caller;
+extern volatile uint32_t diag_crit_count;
+
+uint32_t ble_diag_crit_max_task_us(void)
+{
+    return diag_crit_max_task_cycles / 160u;   /* 160 MHz */
+}
+
+uint32_t ble_diag_crit_max_isr_us(void)
+{
+    return diag_crit_max_isr_cycles / 160u;
+}
+
+uint32_t ble_diag_crit_max_task_caller(void)
+{
+    return diag_crit_max_task_caller;
+}
+
+uint32_t ble_diag_crit_max_isr_caller(void)
+{
+    return diag_crit_max_isr_caller;
+}
+
+uint32_t ble_diag_crit_count(void)
+{
+    return diag_crit_count;
+}
+
+extern volatile uint32_t diag_bt_isr_sp_mismatch;
+
+void ble_diag_reset_counters(void)
+{
+    diag_crit_max_task_cycles = 0;
+    diag_crit_max_isr_cycles = 0;
+    diag_crit_max_task_caller = 0;
+    diag_crit_max_isr_caller = 0;
+    diag_crit_count = 0;
+
+    diag_bt_isr_max_cycles = 0;
+    diag_bt_isr_total_cycles = 0;
+    diag_bt_isr_slow_count = 0;
+    diag_bt_isr_count = 0;
+    diag_bt_isr_sp_mismatch = 0;
+}
+
 void ble_diag_rom_console_mute(void)
 {
     ets_install_putc1(diag_rom_putc_sink);

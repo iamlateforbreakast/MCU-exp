@@ -182,6 +182,21 @@ coexist_lib_printf.o: $(VENDOR)/esp_coex/src/lib_printf.c
 ets_timer_legacy.o: $(VENDOR)/esp_timer/src/ets_timer_legacy.c
 	$(CC) $(CFLAGS) -include esp_attr.h -include assert.h -c $< -o $@
 
+# Objects whose code changes with BLE_DIAG/BLE_SCAN_MODE must be rebuilt when
+# those flags change - make has no idea a -D moved, so switching
+# `make` <-> `make BLE_DIAG=1` otherwise leaves a mix of objects compiled with
+# and without the counters and the link fails on undefined diag symbols.
+# Record the flag values in a stamp and depend on it.
+DIAG_FLAGS := BLE_DIAG=$(BLE_DIAG) BLE_SCAN_MODE=$(BLE_SCAN_MODE)
+
+.diagflags: FORCE
+	@[ "$$(cat $@ 2>/dev/null)" = "$(DIAG_FLAGS)" ] || echo "$(DIAG_FLAGS)" > $@
+
+FORCE:
+.PHONY: FORCE
+
+init.o ble_diag.o critical.o esp_intr_alloc.o: .diagflags
+
 BLOB_DIR := blobs
 LIBBTDM  := $(BLOB_DIR)/libbtdm_app.a
 LIBPHY   := $(BLOB_DIR)/libphy.a
@@ -281,6 +296,6 @@ linkcmds-patched.stamp:
 	touch $@
 
 clean:
-	rm -f $(OBJS) ble_vhci_smoke.exe linkcmds-patched.stamp
+	rm -f $(OBJS) ble_vhci_smoke.exe linkcmds-patched.stamp .diagflags
 
 .PHONY: all clean

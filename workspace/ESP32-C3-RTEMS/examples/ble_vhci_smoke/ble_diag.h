@@ -80,6 +80,23 @@ uint32_t ble_diag_rom_lines_in_isr(void);
 uint32_t ble_diag_bt_isr_mean_us(void);
 uint32_t ble_diag_bt_isr_slow_count(void);
 
+/* Longest window with interrupts globally masked, via the critical-section
+ * shim. Task-context windows are the ones that can delay the BT ISR
+ * starting; `caller` is the return address of the worst task-context
+ * offender, for addr2line. See critical.c for what this does and does not
+ * cover. */
+uint32_t ble_diag_crit_max_task_us(void);
+uint32_t ble_diag_crit_max_isr_us(void);
+uint32_t ble_diag_crit_max_task_caller(void);
+uint32_t ble_diag_crit_max_isr_caller(void);
+uint32_t ble_diag_crit_count(void);
+
+/* Zero the ISR and critical-section statistics. Call once advertising is
+ * actually running: controller init and enable dominate the maxima
+ * otherwise (r_rwip_reset alone masks interrupts for ~3.9 ms), which hides
+ * whatever the steady-state numbers really are. */
+void ble_diag_reset_counters(void);
+
 #else /* !BLE_DIAG - no-op stubs so call sites need no #ifdef */
 
 static inline void ble_diag_dump_intr_matrix(const char *tag) { (void) tag; }
@@ -97,6 +114,12 @@ static inline uint32_t ble_diag_rom_lines(void) { return 0; }
 static inline uint32_t ble_diag_rom_lines_in_isr(void) { return 0; }
 static inline uint32_t ble_diag_bt_isr_mean_us(void) { return 0; }
 static inline uint32_t ble_diag_bt_isr_slow_count(void) { return 0; }
+static inline uint32_t ble_diag_crit_max_task_us(void) { return 0; }
+static inline uint32_t ble_diag_crit_max_isr_us(void) { return 0; }
+static inline uint32_t ble_diag_crit_max_task_caller(void) { return 0; }
+static inline uint32_t ble_diag_crit_max_isr_caller(void) { return 0; }
+static inline uint32_t ble_diag_crit_count(void) { return 0; }
+static inline void ble_diag_reset_counters(void) { }
 
 #endif /* BLE_DIAG */
 
