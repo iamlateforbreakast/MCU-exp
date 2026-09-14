@@ -51,6 +51,46 @@ Two real, confirmed gaps found by actually attempting a link of vendored
 
 ## The fix
 
+**CORRECTED 2026-09-14 - the simplification below was wrong, and cost the
+radio.** Folding `.iram1` into `.text` left every IRAM-attributed function
+flash-mapped and executing via XIP. Measured on hardware, the BT controller
+ISR (`btdm_rw_run`) ran at **1314 us mean / 2912 us max** against a scheduler
+programming budget of 3 half-slots (~940 us), so essentially every
+advertising event missed its deadline and the radio wedged after 10-40 s.
+Real IDF places the same function in IRAM (`btdm_rw_run` at `0x40384216`
+there versus `0x42062ec8` here) and reports zero deadline misses on the same
+board.
+
+The reasoning below was right that this chip has no *separate* IRAM bank and
+that nothing here disables the flash cache - but it missed the other reason
+IRAM placement matters, which is deterministic, fast instruction fetch for a
+hard-real-time ISR. ESP32-C3 SRAM1 is reachable from both buses at a fixed
+offset (`soc.h`: `SOC_DIRAM_DRAM_LOW` 0x3FC80000, `SOC_DIRAM_IRAM_LOW`
+0x40380000, so `SOC_I_D_OFFSET` is 0x700000), so code *can* execute from
+SRAM through the instruction window.
+
+`apply-patch.py` now: routes `.iram1`/`.coexiram` into `.bsp_fast_text`
+instead of `.text`; carves the top 64 KB off the BSP `RAM` region and
+re-exposes it as an `IRAM` region at the aliased address; and points
+`REGION_FAST_TEXT` at it with the load address in `DATA_FLASH_RAW`. RTEMS
+already had the machinery - `.fast_text` has a load/VMA split and
+`bsps/riscv/esp32/start/bspstart.c` already memcpys it at boot - it was
+simply aliased to flash. Result: ISR mean 1314 us -> ~350 us, deadline
+misses down roughly 40x, no more wedging.
+
+Two traps worth knowing, both hit for real:
+  - `EXCLUDE_FILE` in GNU ld applies only to the section pattern that
+    immediately follows it, so excluding an object from `*(.text .text.*)`
+    needs the keyword repeated before **each** pattern. RTEMS is built with
+    `-ffunction-sections`, so its functions live in `.text.<name>` and a
+    single leading `EXCLUDE_FILE` silently misses all of them.
+  - `memcpy` must stay flash-resident: `copy_from_flash_offset()` calls
+    memcpy to populate `.fast_text` itself, so a memcpy living there is not
+    present when the copy runs and the board TG0WDT boot-loops. `memset`
+    fails the same way, slightly later in startup.
+
+Original rationale, retained for the record:
+
 **Deliberate simplification, not a full IRAM/DRAM port**: this BSP has no
 physically separate IRAM/DRAM memory banks the way Xtensa ESP32 does (see
 `linkcmds`'s `MEMORY`/`REGION_ALIAS` block - `REGION_TEXT`/

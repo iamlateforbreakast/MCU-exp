@@ -7,6 +7,7 @@ number (linkcmds.base is waf-generated, not a fixed-line-count file), and
 skips silently if already applied.
 
 Usage: python3 apply-patch.py $RTEMS_ROOT/riscv-rtems7/esp32c3db/lib/linkcmds.base
+       python3 apply-patch.py $RTEMS_ROOT/riscv-rtems7/esp32c3db/lib/linkcmds
 
 Validated with a real link 2026-08-26 - see README.md's "Validated with a
 real link" section for the exact addresses this produced.
@@ -18,12 +19,22 @@ def patch(content):
         print("Already patched - no changes made.")
         return content, False
 
-    text_anchor = "    *(.text .stub .text.* .gnu.linkonce.t.*)\n"
-    if text_anchor not in content:
-        sys.exit("ERROR: .text anchor not found - linkcmds.base format may have changed, see README.md")
+    # .iram1/.coexiram go into .fast_text, NOT .text (corrected 2026-09-14).
+    # Putting them in .text left them flash-mapped and executing via XIP, and
+    # that was measured to be the reason BLE never transmits: the BT
+    # controller's ISR (btdm_rw_run) ran at 1314 us mean / 2912 us max, versus
+    # a scheduler programming budget of 3 half-slots (~940 us), so every
+    # advertising event missed its deadline. Real IDF puts this same code in
+    # IRAM (btdm_rw_run at 0x40384216 there, 0x42062ec8 here). RTEMS's
+    # .fast_text section already has a load/VMA split and bsps/riscv/esp32/
+    # start/bspstart.c already memcpys it at boot - it was simply aliased to
+    # flash. See the companion edit to `linkcmds` in patch_regions().
+    fast_anchor = "    *(.bsp_fast_text)\n"
+    if fast_anchor not in content:
+        sys.exit("ERROR: .bsp_fast_text anchor not found - linkcmds.base format may have changed, see README.md")
     content = content.replace(
-        text_anchor,
-        text_anchor + "    *(.iram1 .iram1.*)\n    *(.coexiram .coexiram.*)\n",
+        fast_anchor,
+        fast_anchor + "    *(.iram1 .iram1.*)\n    *(.coexiram .coexiram.*)\n",
         1,
     )
 
@@ -60,13 +71,56 @@ def patch(content):
     return content, True
 
 
+def patch_regions(content):
+    """Edits `linkcmds` (the region file) rather than `linkcmds.base`.
+
+    Carves the top 64 KB of the BSP's RAM region out and re-exposes it through
+    the ESP32-C3's instruction-bus alias so .fast_text can actually execute
+    from SRAM. On this chip SRAM1 is reachable from both buses at a fixed
+    offset - soc.h: SOC_DIRAM_DRAM_LOW 0x3FC80000, SOC_DIRAM_IRAM_LOW
+    0x40380000, so SOC_I_D_OFFSET is 0x700000 - meaning DRAM 0x3fcc0000 and
+    IRAM 0x403c0000 are the same physical memory. Shrinking RAM to 0x40000 and
+    giving IRAM the 0x10000 above it keeps the two disjoint.
+
+    FAST_TEXT_LOAD is pointed at DATA_FLASH_RAW (not CODE_FLASH_RAW) because
+    bspstart.c's copy_from_flash_offset() resolves load addresses through the
+    data-flash window at 0x3c000000 - the same path the already-working .data
+    copy uses.
+    """
+    if "IRAM :" in content:
+        print("Region file already patched - no changes made.")
+        return content, False
+
+    ram_anchor = "  RAM : ORIGIN = 0x3fc80000, LENGTH = 0x50000\n"
+    if ram_anchor not in content:
+        sys.exit("ERROR: RAM region not found - linkcmds format may have changed, see README.md")
+    content = content.replace(
+        ram_anchor,
+        "  RAM : ORIGIN = 0x3fc80000, LENGTH = 0x40000\n"
+        "  IRAM : ORIGIN = 0x403c0000, LENGTH = 0x10000\n",
+        1,
+    )
+
+    for old, new in (
+        ('REGION_ALIAS ("REGION_FAST_TEXT", CODE_FLASH_MAPPED);',
+         'REGION_ALIAS ("REGION_FAST_TEXT", IRAM);'),
+        ('REGION_ALIAS ("REGION_FAST_TEXT_LOAD", CODE_FLASH_RAW);',
+         'REGION_ALIAS ("REGION_FAST_TEXT_LOAD", DATA_FLASH_RAW);'),
+    ):
+        if old not in content:
+            sys.exit(f"ERROR: alias not found: {old}")
+        content = content.replace(old, new, 1)
+
+    return content, True
+
+
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         sys.exit(f"Usage: {sys.argv[0]} <path-to-linkcmds.base>")
     path = sys.argv[1]
     with open(path) as f:
         original = f.read()
-    patched, changed = patch(original)
+    patched, changed = (patch_regions if path.endswith("linkcmds") else patch)(original)
     if changed:
         with open(path, "w") as f:
             f.write(patched)
